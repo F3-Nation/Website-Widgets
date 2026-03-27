@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  F3 NATION SCHEDULE WIDGET
+  ============================================================
+  This file shows your region's upcoming workouts, pulled live
+  from the F3 Nation API. It is self-contained — no plugins,
+  no accounts, no maintenance required.
+
+  HOW TO USE THIS ON YOUR WEBSITE
+  --------------------------------
+  You only need to do THREE things:
+
+  STEP 1 — Find the CONFIG section below (search for "CONFIG")
+           and fill in your region's values. There are only
+           5 things to change. Instructions are next to each one.
+
+  STEP 2 — Copy the widget HTML block (marked with
+           "COPY FROM HERE" and "END COPY") and paste it
+           wherever you want the widget to appear on your page.
+
+  STEP 3 — Copy the <style> block and the <script> block into
+           your page as well. Both are clearly marked.
+
+  COMMON WEBSITE PLATFORMS
+  -------------------------
+  WordPress  → Use a "Custom HTML" block in the page editor
+  Squarespace → Add a "Code Block" in your page
+  Wix        → Add an "HTML iFrame" widget
+  Weebly     → Use the "Embed Code" element
+  Raw HTML   → Paste directly into your page's HTML file
+
+  NEED HELP?
+  ----------
+  If you're not sure what your REGION_ORG_ID is, ask in the
+  F3 tech channel and someone can look it up for you. No API
+  token is needed — authentication is handled securely on the
+  server. This file is safe to share publicly.
+
+  QUESTIONS / ISSUES
+  ------------------
+  Post in the F3 tech Slack channel for support.
+  ============================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F3 Schedule Widget</title>
+
+<!--
+  ============================================================
+  STYLES — copy this entire <style>...</style> block into your
+  page's <head> section, or into your site's CSS file.
+  You do NOT need to change anything in here unless you want
+  to customize the visual appearance.
+  ============================================================
+-->
+<style>
+
+/* Resets box sizing so padding doesn't break layouts */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* The outer widget container.
+   max-width: 460px keeps it a reasonable column width.
+   Change this if you need it wider or narrower. */
+#f3-widget {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: #fff;
+  color: #111;
+  max-width: 460px;
+  width: 100%;
+  border: 1px solid #ddd;
+}
+
+/* ── HEADER (black bar at the top) ── */
+.f3w-hdr {
+  background: #111;      /* Black background */
+  color: #fff;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* The F3 logo image in the header */
+.f3w-hdr-mark {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;        /* Prevents logo from shrinking */
+  border-radius: 3px;
+}
+
+.f3w-hdr-text { flex: 1; } /* Takes up remaining header space */
+
+/* Region name text (e.g. "F3 Waxhaw") — set by WIDGET_TITLE in CONFIG */
+.f3w-hdr-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  line-height: 1;
+}
+
+/* "Fitness · Fellowship · Faith" tagline */
+.f3w-hdr-tag {
+  font-size: 10px;
+  color: #aaa;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+
+/* "Upcoming Workouts" label in top-right corner */
+.f3w-hdr-label {
+  font-size: 10px;
+  color: #888;
+  text-align: right;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+
+/* ── DAY GROUPS (each day gets its own section) ── */
+.f3w-day { border-bottom: 1px solid #eee; }
+.f3w-day:last-child { border-bottom: none; }
+
+/* The day label bar (e.g. "MONDAY  Mar 25") */
+.f3w-day-hdr {
+  background: #f7f7f7;
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #555;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* TODAY's header gets a red background instead of gray */
+.f3w-today .f3w-day-hdr {
+  background: #c8102e;   /* F3 red — change this to your region's color if desired */
+  color: #fff;
+  border-bottom-color: #a50d24;
+}
+
+/* The date portion of the day header (slightly faded) */
+.f3w-day-date { font-weight: 400; opacity: .7; }
+
+/* ── EVENT ROWS (one row per workout) ── */
+/* Three columns: time | workout name + pills | Q name */
+.f3w-row {
+  padding: 11px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  display: grid;
+  grid-template-columns: 50px 1fr auto;  /* time=50px, name=flexible, Q=auto */
+  gap: 12px;
+  align-items: center;
+}
+.f3w-row:last-child { border-bottom: none; }
+.f3w-row:hover { background: #fafafa; }  /* Subtle hover highlight */
+
+/* Time column */
+.f3w-time { text-align: right; line-height: 1; }
+
+/* The large time number (e.g. "5:30") in F3 red */
+.f3w-time-val {
+  font-size: 17px;
+  font-weight: 800;
+  color: #c8102e;        /* F3 red */
+  font-variant-numeric: tabular-nums;  /* Keeps number widths consistent */
+}
+
+/* AM / PM label under the time */
+.f3w-time-ap {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+/* AO / workout name (e.g. "COWBELL") */
+.f3w-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: .01em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+/* Container for the colored pill badges below the AO name */
+.f3w-pills {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  flex-wrap: wrap;       /* Wraps to next line if needed */
+}
+
+/* Base pill style — all badges share this */
+.f3w-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 20px;   /* Fully rounded pill shape */
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* Pill colors by workout type.
+   To change a color, edit the background and color values. */
+.f3w-pill-bc       { background: #f0f0f0; color: #555; }          /* Bootcamp — gray */
+.f3w-pill-run      { background: #dcf5e6; color: #1a6b35; }       /* Run — green */
+.f3w-pill-ruck     { background: #fef3dc; color: #7a5010; }       /* Ruck — tan */
+.f3w-pill-bike     { background: #dceeff; color: #1a4a8a; }       /* Bike — blue */
+.f3w-pill-mobility { background: #f0e8ff; color: #5a1a8a; }       /* Mobility — purple */
+.f3w-pill-gear     { background: #fff0dc; color: #8a5a1a; }       /* Gear — orange */
+.f3w-pill-preblast { background: #dcf5e6; color: #1a6b35; }       /* Preblast — green */
+
+/* Q column (right side of each row) */
+.f3w-q { text-align: right; min-width: 72px; flex-shrink: 0; }
+
+/* Small "Q" label above the Q's name */
+.f3w-q-lbl {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #aaa;
+  margin-bottom: 2px;
+}
+
+/* The Q's actual name */
+.f3w-q-name { font-size: 13px; font-weight: 700; color: #111; line-height: 1.2; }
+
+/* "Q OPEN" badge shown when no Q is assigned — red outline pill */
+.f3w-q-open {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #c8102e;
+  background: #fff0f2;
+  border: 1px solid #c8102e;
+  border-radius: 3px;
+  padding: 3px 7px;
+  line-height: 1;
+}
+
+/* ── LOADING / ERROR STATES ── */
+/* Shown while data is being fetched, or if something goes wrong */
+.f3w-state {
+  padding: 32px 18px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #aaa;
+}
+
+/* Spinning circle shown during loading */
+.f3w-state-spin {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #eee;
+  border-top-color: #c8102e;  /* Red segment that spins */
+  border-radius: 50%;
+  animation: f3spin .7s linear infinite;
+  margin: 0 auto 12px;
+}
+
+@keyframes f3spin { to { transform: rotate(360deg); } }
+
+/* ── FOOTER (gray bar at the bottom) ── */
+.f3w-ftr {
+  background: #f7f7f7;
+  border-top: 1px solid #eee;
+  padding: 9px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.f3w-ftr a {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #888;
+  text-decoration: none;
+}
+.f3w-ftr a:hover { color: #111; }
+
+/* "F3 Nation" brand text in footer */
+.f3w-ftr-brand { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #c8102e; }
+
+</style>
+</head>
+
+<!--
+  The <body> tag below has inline styles just to center the widget
+  on this preview page. You do NOT need to copy the <body> tag —
+  just copy the widget div and the script block below.
+-->
+<body style="background:#e5e5e5;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px">
+
+<!-- ============================================================
+     COPY FROM HERE — paste this div wherever you want the
+     widget to appear on your page.
+     ============================================================ -->
+<div id="f3-widget">
+
+  <!-- Header bar -->
+  <div class="f3w-hdr">
+    <!-- F3 logo (embedded directly so no external file needed) -->
+    <img src="data:image/webp;base64,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" class="f3w-hdr-mark" alt="F3" style="width:42px;height:42px;object-fit:contain;background:#fff;border-radius:3px;padding:2px">
+    <div class="f3w-hdr-text">
+      <!-- Region name — automatically updated by WIDGET_TITLE in CONFIG -->
+      <div class="f3w-hdr-name" id="f3w-name">F3 Waxhaw</div>
+      <div class="f3w-hdr-tag">Fitness · Fellowship · Faith</div>
+    </div>
+    <div class="f3w-hdr-label">Upcoming<br>Workouts</div>
+  </div>
+
+  <!-- Schedule content — populated automatically by the script below -->
+  <div id="f3w-body">
+    <!-- This loading spinner is replaced with real data once the API responds -->
+    <div class="f3w-state"><div class="f3w-state-spin"></div>Loading schedule…</div>
+  </div>
+
+  <!-- Footer bar -->
+  <div class="f3w-ftr">
+    <a href="https://f3nation.com" target="_blank">F3Nation.com</a>
+    <div class="f3w-ftr-brand">F3 Nation</div>
+    <!-- "Our Site" link — automatically updated by REGION_URL in CONFIG -->
+    <a id="f3w-sitelink" href="https://f3waxhaw.com" target="_blank">Our Site →</a>
+  </div>
+
+</div>
+<!-- ============================================================
+     END COPY
+     ============================================================ -->
+
+
+<!-- ============================================================
+     SCRIPT — copy this entire <script>...</script> block and
+     paste it just before the </body> tag on your page.
+     ============================================================ -->
+<script>
+
+// ============================================================
+// CONFIG — THIS IS THE ONLY PART YOU NEED TO CHANGE
+// ============================================================
+var F3W = {
+
+  // YOUR REGION'S ID NUMBER from F3 Nation.
+  // Find it in the F3 Nation app under: Settings → Region → orgId
+  // Or ask in the F3 tech channel and someone can look it up for you.
+  // Example: 25273 is F3 Waxhaw. Your number will be different.
+  // Reads regionOrgId from the URL automatically.
+  // e.g. https://your-site.netlify.app/?regionOrgId=25273
+  // If not in URL, falls back to the default below.
+  REGION_ORG_ID : new URLSearchParams(window.location.search).get('regionOrgId') || 25273,
+
+  // THE URL OF YOUR REGION'S WORDPRESS SITE + /wp-json/f3/v1
+  // This is the secure proxy that fetches schedule data server-side.
+  // Your site must have the f3-ao-manager plugin installed.
+  // NO API TOKEN NEEDED — it's stored safely on the server, not here.
+  // Change this to your own region's WordPress URL.
+  // Calls the Netlify edge function in the same deploy
+  PROXY_URL : window.location.origin + '/f3/v1',
+
+  // How many days of upcoming workouts to show.
+  // 7 = one week, 14 = two weeks (default), 30 = one month.
+  // Tip: 14 is a good balance between useful and overwhelming.
+  DAYS_AHEAD    : 14,
+
+  // Your region's name — shown in the widget header.
+  // Example: 'F3 Raleigh' or 'F3 Atlanta South'
+  // Override with ?title=F3+Raleigh in the URL, or set a default here
+  WIDGET_TITLE  : new URLSearchParams(window.location.search).get('title') || 'F3 Nation',
+
+  // The URL of your region's website.
+  // This appears as the "Our Site" link in the widget footer.
+  // Include the https:// at the start.
+  REGION_URL    : new URLSearchParams(window.location.search).get('siteUrl') || 'https://f3nation.com',
+
+};
+// ============================================================
+// END CONFIG — do not change anything below this line
+// unless you know what you're doing
+// ============================================================
+
+
+// Self-executing function — runs automatically when the page loads.
+// Wrapping everything in here prevents conflicts with other scripts
+// on your page.
+(function() {
+
+  // Apply the region name and site link from CONFIG
+  document.getElementById('f3w-name').textContent = F3W.WIDGET_TITLE;
+  var sl = document.getElementById('f3w-sitelink');
+  if (sl) sl.href = F3W.REGION_URL;
+
+  // Calculate today's date and the end date (today + DAYS_AHEAD)
+  // Dates are formatted as YYYY-MM-DD which is what the F3 Nation API expects
+  var today  = new Date();
+  var tStr   = today.toISOString().split('T')[0];   // e.g. "2026-03-25"
+  var eDate  = new Date(today);
+  eDate.setDate(eDate.getDate() + F3W.DAYS_AHEAD);
+  var eStr   = eDate.toISOString().split('T')[0];   // e.g. "2026-04-08"
+
+  // Fetch schedule via the secure WordPress proxy.
+  // The API token never leaves the server — this is safe to share publicly.
+  // The proxy caches results for 30 minutes to keep things fast.
+  fetch(F3W.PROXY_URL + '/region-schedule?regionOrgId=' + F3W.REGION_ORG_ID)
+
+  // Parse the JSON response
+  .then(function(r){ return r.json(); })
+
+  // Process and render the schedule data
+  .then(function(data){
+
+    // Filter to only events within our date range that have a start time.
+    // (Timeless events are typically all-day or non-workout entries.)
+    var events = (data.events || []).filter(function(e){
+      return e.startDate >= tStr && e.startDate <= eStr && e.startTime;
+    });
+
+    // If no workouts found, show a friendly message
+    if (!events.length) {
+      document.getElementById('f3w-body').innerHTML =
+        '<div class="f3w-state">No workouts in the next ' + F3W.DAYS_AHEAD + ' days</div>';
+      return;
+    }
+
+    // Group events by date so we can render a section per day.
+    // byDate looks like: { "2026-03-25": [event1, event2], "2026-03-26": [event3], ... }
+    var byDate = {};
+    events.forEach(function(e){
+      if (!byDate[e.startDate]) byDate[e.startDate] = [];
+      byDate[e.startDate].push(e);
+    });
+
+    // Day and month name arrays for formatting dates into readable strings
+    var days  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var mons  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var html  = '';  // We'll build the HTML string here and inject it all at once
+
+    // Loop through each date in chronological order
+    Object.keys(byDate).sort().forEach(function(ds){
+      var d      = new Date(ds + 'T12:00:00');  // noon avoids timezone edge cases
+      var isTdy  = ds === tStr;                  // true if this date is today
+      var dName  = isTdy ? 'Today' : days[d.getDay()];  // "Today" or "Monday" etc.
+      var dDate  = mons[d.getMonth()] + ' ' + d.getDate();  // "Mar 25"
+
+      // Open the day group div — add 'f3w-today' class if it's today (turns header red)
+      html += '<div class="f3w-day' + (isTdy ? ' f3w-today' : '') + '">';
+      html += '<div class="f3w-day-hdr">' + dName
+        + ' <span class="f3w-day-date">' + dDate + '</span></div>';
+
+      // Sort this day's events by start time, then render each one
+      byDate[ds]
+        .sort(function(a,b){ return (a.startTime||'').localeCompare(b.startTime||''); })
+        .forEach(function(e){
+
+          // Convert 24hr time (e.g. "0530") to 12hr display (e.g. "5:30 AM")
+          var raw  = e.startTime || '0530';
+          var h    = parseInt(raw.slice(0,2));   // hour as number
+          var m    = raw.slice(2);               // minutes as string ("30")
+          var ap   = h >= 12 ? 'PM' : 'AM';     // AM or PM
+          var h12  = h > 12 ? h - 12 : (h === 0 ? 12 : h);  // convert to 12hr
+
+          // Build colored pill badges for each event type.
+          // An event can have multiple types (e.g. Bootcamp + Gear).
+          var pills = '';
+          (e.eventTypes || []).forEach(function(t){
+            var n  = (t.name || '').toLowerCase();
+            // Map type name to CSS class suffix for pill color
+            var cl = n.includes('run')               ? 'run'
+                   : n.includes('ruck')              ? 'ruck'
+                   : n.includes('bike') || n.includes('cycl') ? 'bike'
+                   : n.includes('mobil')             ? 'mobility'
+                   : n.includes('gear')              ? 'gear'
+                   : 'bc';  // default = bootcamp (gray)
+            pills += '<span class="f3w-pill f3w-pill-' + cl + '">' + t.name + '</span>';
+          });
+
+          // Add a "Preblast ✓" pill if a preblast has been posted for this workout
+          if (e.hasPreblast) pills += '<span class="f3w-pill f3w-pill-preblast">Preblast ✓</span>';
+
+          // Build the Q section.
+          // plannedQs is the Q's F3 name as a string, or null if no Q is signed up.
+          var qHtml = e.plannedQs
+            ? '<div class="f3w-q-lbl">Q</div><div class="f3w-q-name">' + e.plannedQs + '</div>'
+            : '<div class="f3w-q-open">Q Open</div>';  // red badge if no Q
+
+          // Build the full event row HTML
+          // Layout: [time] [AO name + pills] [Q info]
+          html += '<div class="f3w-row">'
+            + '<div class="f3w-time">'
+            +   '<div class="f3w-time-val">' + h12 + ':' + m + '</div>'
+            +   '<div class="f3w-time-ap">' + ap + '</div>'
+            + '</div>'
+            + '<div>'
+            // Use orgName (AO name) with fallbacks to seriesName or instance name
+            +   '<div class="f3w-name">' + (e.orgName || e.seriesName || e.name) + '</div>'
+            +   (pills ? '<div class="f3w-pills">' + pills + '</div>' : '')
+            + '</div>'
+            + '<div class="f3w-q">' + qHtml + '</div>'
+            + '</div>';
+        });
+
+      html += '</div>';  // close .f3w-day
+    });
+
+    // Inject all the built HTML into the widget body at once
+    document.getElementById('f3w-body').innerHTML = html;
+  })
+
+  // If the API call fails (network error, bad token, etc.) show an error message
+  .catch(function(err){
+    document.getElementById('f3w-body').innerHTML =
+      '<div class="f3w-state">Could not load schedule —<br>check your API token &amp; region ID</div>';
+    console.error('[F3 Widget]', err);
+  });
+
+})();  // end self-executing function
+
+</script>
+</body>
+</html>
