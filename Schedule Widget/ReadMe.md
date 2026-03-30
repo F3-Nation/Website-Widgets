@@ -1,19 +1,44 @@
-# Schedule Widget
-> From Defalted in Waxhaw region
+# F3 Schedule Widget — Standalone HTML
 
-I built a schedule widget you can embed on any F3 region website. It pulls live data straight from the F3 Nation API — Q names, workout types, open Q slots, preblast status. Looks clean on any site. No plugins, no accounts, no maintenance. The widget shows today's workouts highlighted, Q names, open Q slots, and workout type badges (Run/Ruck/Bootcamp/etc). Color-coded pills, works on mobile.
+A single HTML file you can drop on any website to show your region's live workout schedule. No server required. Works on WordPress, Squarespace, Wix, Weebly, or raw HTML.
 
-What you need to get it running:
-1. Be an Admin for your region.
-1. Your region's `orgId` from F3 Nation (go to https://map.f3nation.com/admin/regions, find your region, click on it, and look for the ID field).
-1. An F3 Nation API bearer token (same place — Settings → API)
+## What You Need
+- Your region's **orgId** — go to [map.f3nation.com/admin/regions](https://map.f3nation.com/admin/regions), find your region, click it, look for the ID field
+- Your **F3 Nation bearer token** — same admin page → Settings → API. Starts with `f3_`
 
-How to embed it:
-1. Copy the text from code.html into Notepad
-1. Find the 5 lines near the top that say CONFIG and change REGION_ORG_ID and BEARER_TOKEN to your values
-1. Save the file and give it to whoever manages your website — they paste the widget code anywhere on the page
+## Setup
+1. Open `code.html` in **Notepad** (Windows) or **TextEdit** (Mac)
+2. Find the `CONFIG` section near the top and fill in your values:
+   ```javascript
+   REGION_ORG_ID : 12345,                  // ← your orgId
+   BEARER_TOKEN  : 'f3_xxxxx...',           // ← your bearer token
+   WIDGET_TITLE  : 'F3 Raleigh',            // ← your region name
+   REGION_URL    : 'https://yoursite.com',  // ← your website
+   ```
+3. Save the file
 
+## Embed on Your Site
 
-If your site is on WordPress, Squarespace, or Wix, just drop the code in an "HTML block" or "Custom Code" widget. If you have no idea what that means, reach out to Deflated on the F3 Nation Slack and he'll walk you through it.
+| Platform | Where to paste |
+|---|---|
+| WordPress | Add a "Custom HTML" block |
+| Squarespace | Add a "Code Block" |
+| Wix | Add an "HTML iFrame" element |
+| Weebly | Use the "Embed Code" element |
+| Raw HTML | Paste directly into your page |
 
-The widget shows today's workouts highlighted, Q names, open Q slots, and workout type badges (Run/Ruck/Bootcamp/etc). Color-coded pills, works on mobile.
+## ⚠️ Security Note
+Your bearer token is visible in the page source with this method. It's **read-only** (it cannot modify any F3 Nation data), so the risk is low. But if you'd prefer to keep your token completely private, use one of the proxy options instead:
+- **Netlify Proxy** — best for Google Sites, Squarespace, Wix, static sites (free)
+- **WordPress Proxy** — best for WordPress sites
+- **PHP Proxy** — best for any PHP web host
+
+## What the Widget Shows
+- Today's workouts highlighted
+- Upcoming workouts grouped by day
+- Workout type badges: Bootcamp, Run, Ruck, Bike, Mobility
+- Q name when assigned, "Q Open" badge when not
+- Preblast indicator when posted
+
+## Questions / Help
+Post in the F3 Nation tech Slack or reach out to **Deflated** (F3 Waxhaw).

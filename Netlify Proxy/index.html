@@ -32,11 +32,10 @@
 
   NEED HELP?
   ----------
-  If you're not sure what your REGION_ORG_ID or BEARER_TOKEN
-  are, ask in the F3 tech channel or reach out to your F3
-  Nation regional contact. You cannot break anything by
-  experimenting with this file — the worst that happens is
-  the widget shows an error message.
+  If you're not sure what your REGION_ORG_ID is, ask in the
+  F3 tech channel and someone can look it up for you. No API
+  token is needed — authentication is handled securely on the
+  server. This file is safe to share publicly.
 
   QUESTIONS / ISSUES
   ------------------
@@ -367,19 +366,18 @@ var F3W = {
   // Find it in the F3 Nation app under: Settings → Region → orgId
   // Or ask in the F3 tech channel and someone can look it up for you.
   // Example: 25273 is F3 Waxhaw. Your number will be different.
-  REGION_ORG_ID : 8675309,
+  // Reads regionOrgId from the URL automatically.
+  // e.g. https://your-site.netlify.app/?regionOrgId=25273
+  // If not in URL, falls back to the default below.
+  REGION_ORG_ID : new URLSearchParams(window.location.search).get('regionOrgId') || 0,  // ← set your orgId here
 
-  // YOUR API BEARER TOKEN from F3 Nation.
-  // This is like a password that lets the widget fetch your schedule.
-  // Get it from the F3 Nation app under: Settings → API → Bearer Token
-  // Keep this private — don't post it publicly.
-  // Format: it always starts with "f3_" followed by a long string.
-  BEARER_TOKEN  : 'F3_YOURTOKEN',
-
-  // A short identifier for your region — no spaces, no special characters.
-  // This is just used internally and can be anything that identifies you.
-  // Example: 'f3raleigh-widget' or 'f3atlanta-site'
-  CLIENT_ID     : 'YOUR_CLIENT_ID',
+  // THE URL OF YOUR REGION'S WORDPRESS SITE + /wp-json/f3/v1
+  // This is the secure proxy that fetches schedule data server-side.
+  // Your site must have the f3-ao-manager plugin installed.
+  // NO API TOKEN NEEDED — it's stored safely on the server, not here.
+  // Change this to your own region's WordPress URL.
+  // Leave this as-is — automatically points to your Netlify site
+  PROXY_URL : window.location.origin,
 
   // How many days of upcoming workouts to show.
   // 7 = one week, 14 = two weeks (default), 30 = one month.
@@ -388,12 +386,13 @@ var F3W = {
 
   // Your region's name — shown in the widget header.
   // Example: 'F3 Raleigh' or 'F3 Atlanta South'
-  WIDGET_TITLE  : 'F3 XXXX',
+  // Override with ?title=F3+Raleigh in the URL, or set a default here
+  WIDGET_TITLE  : new URLSearchParams(window.location.search).get('title') || 'F3 Nation',
 
   // The URL of your region's website.
   // This appears as the "Our Site" link in the widget footer.
   // Include the https:// at the start.
-  REGION_URL    : 'https://f3XXXX.com',
+  REGION_URL    : new URLSearchParams(window.location.search).get('siteUrl') || 'https://f3nation.com',
 
 };
 // ============================================================
@@ -420,21 +419,10 @@ var F3W = {
   eDate.setDate(eDate.getDate() + F3W.DAYS_AHEAD);
   var eStr   = eDate.toISOString().split('T')[0];   // e.g. "2026-04-08"
 
-  // Fetch upcoming schedule from the F3 Nation API.
-  // This makes a secure request using your BEARER_TOKEN.
-  // The API returns a list of event instances (individual workout occurrences).
-  fetch('https://api.f3nation.com/v1/event-instance/calendar-home-schedule'
-    + '?regionOrgId=' + F3W.REGION_ORG_ID   // filter to your region
-    + '&userId=1'                             // required by the API (any valid user)
-    + '&startDate=' + tStr                   // start from today
-    + '&limit=150',                           // max events to fetch
-    {
-      headers: {
-        'Authorization': 'Bearer ' + F3W.BEARER_TOKEN,  // your API token
-        'client': F3W.CLIENT_ID                          // your region identifier
-      }
-    }
-  )
+  // Fetch schedule via the secure WordPress proxy.
+  // The API token never leaves the server — this is safe to share publicly.
+  // The proxy caches results for 30 minutes to keep things fast.
+  fetch(F3W.PROXY_URL + '/.netlify/functions/region-schedule?regionOrgId=' + F3W.REGION_ORG_ID)
 
   // Parse the JSON response
   .then(function(r){ return r.json(); })
