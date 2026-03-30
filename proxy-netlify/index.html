@@ -376,8 +376,8 @@ var F3W = {
   // Your site must have the f3-ao-manager plugin installed.
   // NO API TOKEN NEEDED — it's stored safely on the server, not here.
   // Change this to your own region's WordPress URL.
-  // Calls the Netlify edge function in the same deploy
-  PROXY_URL : window.location.origin + '/f3/v1',
+  // Leave this as-is — automatically points to your Netlify site
+  PROXY_URL : window.location.origin,
 
   // How many days of upcoming workouts to show.
   // 7 = one week, 14 = two weeks (default), 30 = one month.
@@ -422,7 +422,7 @@ var F3W = {
   // Fetch schedule via the secure WordPress proxy.
   // The API token never leaves the server — this is safe to share publicly.
   // The proxy caches results for 30 minutes to keep things fast.
-  fetch(F3W.PROXY_URL + '/region-schedule?regionOrgId=' + F3W.REGION_ORG_ID)
+  fetch(F3W.PROXY_URL + '/.netlify/functions/region-schedule?regionOrgId=' + F3W.REGION_ORG_ID)
 
   // Parse the JSON response
   .then(function(r){ return r.json(); })
