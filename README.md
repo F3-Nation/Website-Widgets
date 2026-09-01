@@ -4,6 +4,10 @@ Community-built tools for F3 region websites. Show live schedules, backblasts, P
 
 Built by Deflated — F3 Waxhaw. Contributions welcome.
 
+**New:** every schedule widget now shows AOs you have **closed for a single day**
+in Slack — struck through, with the reason — instead of advertising a workout that
+is not happening. See [Closed AOs](Schedule%20Widget/README.md#closed-aos-convergences-holidays-weather).
+
 ---
 
 ## What's in This Repo

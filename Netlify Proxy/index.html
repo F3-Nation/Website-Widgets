@@ -224,6 +224,29 @@
 .f3w-pill-gear     { background: #fff0dc; color: #8a5a1a; }       /* Gear — orange */
 .f3w-pill-preblast { background: #dcf5e6; color: #1a6b35; }       /* Preblast — green */
 
+/* ── ONE-OFF EXCEPTIONS (closed AOs, time changes) ── */
+/* A "closed" workout is still on the schedule feed — it has just been
+   cancelled for that one day (convergence, holiday, weather). We keep the
+   row visible but clearly struck out, so a Downranger checking your site
+   does not drive to an empty field. */
+.f3w-pill-closed  { background: #fde2e4; color: #a01021; }        /* Closed — red */
+.f3w-pill-changed { background: #fff0dc; color: #8a5a1a; }        /* Time change — orange */
+
+.f3w-row-closed              { background: #fdfbfb; }
+.f3w-row-closed .f3w-name    { color: #9a9a9a; text-decoration: line-through;
+                               text-decoration-thickness: 1.5px; }
+.f3w-row-closed .f3w-time-val { color: #d0a6ad; }
+
+/* The reason the Q typed into Slack, shown where the Q name normally goes */
+.f3w-reason {
+  font-size: 11px;
+  font-weight: 600;
+  color: #a01021;
+  line-height: 1.25;
+  text-align: right;
+  max-width: 150px;
+}
+
 /* Q column (right side of each row) */
 .f3w-q { text-align: right; min-width: 72px; flex-shrink: 0; }
 
@@ -389,6 +412,13 @@ var F3W = {
   // Override with ?title=F3+Raleigh in the URL, or set a default here
   WIDGET_TITLE  : new URLSearchParams(window.location.search).get('title') || 'F3 Nation',
 
+  // What to do with workouts that have been CLOSED for a single day
+  // (an AO closed in Slack for a convergence, holiday or bad weather).
+  //   'badge' = keep the row, struck through, with a CLOSED tag and the
+  //             reason. Recommended — it tells visitors where NOT to go.
+  //   'hide'  = drop the row from the schedule entirely.
+  CLOSED_MODE   : 'badge',
+
   // The URL of your region's website.
   // This appears as the "Our Site" link in the widget footer.
   // Include the https:// at the start.
@@ -422,6 +452,14 @@ var F3W = {
   // Fetch schedule via the secure WordPress proxy.
   // The API token never leaves the server — this is safe to share publicly.
   // The proxy caches results for 30 minutes to keep things fast.
+  // Escape text that came from the API before putting it in the page.
+  // AO names, Q names and closure reasons are all typed by humans in Slack.
+  function esc(t) {
+    return String(t == null ? '' : t)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   fetch(F3W.PROXY_URL + '/.netlify/functions/region-schedule?regionOrgId=' + F3W.REGION_ORG_ID)
 
   // Parse the JSON response
@@ -432,7 +470,12 @@ var F3W = {
 
     // Filter to only events within our date range that have a start time.
     // (Timeless events are typically all-day or non-workout entries.)
+    // seriesException is stamped on by the region-schedule proxy function.
+    // If CLOSED_MODE is 'hide', closed workouts are dropped here — doing it
+    // before we group by day means a day where everything is closed does not
+    // leave an empty date header behind.
     var events = (data.events || []).filter(function(e){
+      if (F3W.CLOSED_MODE === 'hide' && e.seriesException === 'closed') return false;
       return e.startDate >= tStr && e.startDate <= eStr && e.startTime;
     });
 
@@ -480,9 +523,17 @@ var F3W = {
           var ap   = h >= 12 ? 'PM' : 'AM';     // AM or PM
           var h12  = h > 12 ? h - 12 : (h === 0 ? 12 : h);  // convert to 12hr
 
+          // Has this workout been closed or moved for this one day?
+          var exception = e.seriesException || null;
+          var isClosed  = exception === 'closed';
+          var isMoved   = exception === 'different-time';
+
           // Build colored pill badges for each event type.
           // An event can have multiple types (e.g. Bootcamp + Gear).
+          // The CLOSED tag goes first so it is the first thing read.
           var pills = '';
+          if (isClosed) pills += '<span class="f3w-pill f3w-pill-closed">Closed</span>';
+          if (isMoved)  pills += '<span class="f3w-pill f3w-pill-changed">Time Changed</span>';
           (e.eventTypes || []).forEach(function(t){
             var n  = (t.name || '').toLowerCase();
             // Map type name to CSS class suffix for pill color
@@ -492,28 +543,40 @@ var F3W = {
                    : n.includes('mobil')             ? 'mobility'
                    : n.includes('gear')              ? 'gear'
                    : 'bc';  // default = bootcamp (gray)
-            pills += '<span class="f3w-pill f3w-pill-' + cl + '">' + t.name + '</span>';
+            pills += '<span class="f3w-pill f3w-pill-' + cl + '">' + esc(t.name) + '</span>';
           });
 
           // Add a "Preblast ✓" pill if a preblast has been posted for this workout
           if (e.hasPreblast) pills += '<span class="f3w-pill f3w-pill-preblast">Preblast ✓</span>';
 
-          // Build the Q section.
-          // plannedQs is the Q's F3 name as a string, or null if no Q is signed up.
-          var qHtml = e.plannedQs
-            ? '<div class="f3w-q-lbl">Q</div><div class="f3w-q-name">' + e.plannedQs + '</div>'
-            : '<div class="f3w-q-open">Q Open</div>';  // red badge if no Q
+          // Build the right-hand column.
+          // For a closed workout the Q no longer matters — what a visitor
+          // needs is the reason, so we show that instead. (A Q can still be
+          // signed up to a workout that was closed after they volunteered.)
+          var qHtml;
+          if (isClosed) {
+            qHtml = '<div class="f3w-q-lbl">Closed</div>'
+                  + '<div class="f3w-reason">'
+                  +   esc(e.seriesExceptionReason || 'No workout today')
+                  + '</div>';
+          } else if (e.plannedQs) {
+            // plannedQs is the Q's F3 name as a string
+            qHtml = '<div class="f3w-q-lbl">Q</div>'
+                  + '<div class="f3w-q-name">' + esc(e.plannedQs) + '</div>';
+          } else {
+            qHtml = '<div class="f3w-q-open">Q Open</div>';  // red badge if no Q
+          }
 
           // Build the full event row HTML
           // Layout: [time] [AO name + pills] [Q info]
-          html += '<div class="f3w-row">'
+          html += '<div class="f3w-row' + (isClosed ? ' f3w-row-closed' : '') + '">'
             + '<div class="f3w-time">'
             +   '<div class="f3w-time-val">' + h12 + ':' + m + '</div>'
             +   '<div class="f3w-time-ap">' + ap + '</div>'
             + '</div>'
             + '<div>'
             // Use orgName (AO name) with fallbacks to seriesName or instance name
-            +   '<div class="f3w-name">' + (e.orgName || e.seriesName || e.name) + '</div>'
+            +   '<div class="f3w-name">' + esc(e.orgName || e.seriesName || e.name) + '</div>'
             +   (pills ? '<div class="f3w-pills">' + pills + '</div>' : '')
             + '</div>'
             + '<div class="f3w-q">' + qHtml + '</div>'

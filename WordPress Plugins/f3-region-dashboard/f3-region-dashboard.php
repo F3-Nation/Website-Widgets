@@ -62,6 +62,17 @@ function f3rd_get_stats(): array {
     // Upcoming schedule — count open Qs in next 7 days
     $cal = f3api_request('/v1/event-instance/calendar-home-schedule?regionOrgId=' . $region_id . '&userId=1&startDate=' . $today . '&limit=100');
     $events  = $cal['events'] ?? [];
+
+    // Drop workouts that have been closed for the day (convergence, holiday,
+    // weather). Without this they are counted as workouts still needing a Q,
+    // which nags the region to fill a Q slot for a workout that is not
+    // happening. See f3api_exceptions() in the F3 Nation API plugin.
+    $events  = f3api_mark_exceptions( $events, $region_id );
+    $events  = array_values( array_filter(
+        $events,
+        fn($e) => ( $e['seriesException'] ?? null ) !== 'closed'
+    ) );
+
     $week_end = date('Y-m-d', strtotime('+7 days'));
     $this_week = array_filter($events, fn($e) => ($e['startDate'] ?? '') <= $week_end);
     $open_qs   = array_filter($this_week, fn($e) => empty($e['plannedQs']));

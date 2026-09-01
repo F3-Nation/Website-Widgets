@@ -72,6 +72,13 @@ function f3sw_get_schedule( WP_REST_Request $req ): WP_REST_Response {
         30
     );
 
+    // Mark any workouts that have been closed or moved for a single day.
+    // The schedule endpoint above cannot report this on its own — see
+    // f3api_exceptions() in the F3 Nation API plugin for why.
+    if ( ! isset($data['error']) && ! empty($data['events']) ) {
+        $data['events'] = f3api_mark_exceptions( $data['events'], $region_id );
+    }
+
     return rest_ensure_response($data);
 }
 
@@ -87,6 +94,9 @@ function f3sw_shortcode( $atts ): string {
         'days'      => 14,
         'title'     => f3api_setting('region_name', 'F3 Nation'),
         'show_q'    => 'true',
+        // 'badge' keeps closed workouts visible but struck through (with the
+        // reason); 'hide' drops them from the list entirely.
+        'closed'    => 'badge',
         'max_width' => '480',
     ], $atts, 'f3_schedule');
 
@@ -122,6 +132,13 @@ function f3sw_shortcode( $atts ): string {
     .f3sw-q-lbl { font-size:9px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#aaa; text-align:right; }
     .f3sw-q-name { font-size:13px; font-weight:700; color:#111; text-align:right; }
     .f3sw-q-open { font-size:10px; font-weight:700; color:#c8102e; background:#fff0f2; border:1px solid #c8102e; border-radius:3px; padding:3px 7px; }
+    /* A workout closed for this one day — struck through so nobody drives to an empty field */
+    .f3sw-pill-closed { background:#fde2e4; color:#a01021; }
+    .f3sw-pill-changed { background:#fff0dc; color:#8a5a1a; }
+    .f3sw-row-closed { background:#fdfbfb; }
+    .f3sw-row-closed .f3sw-name { color:#9a9a9a; text-decoration:line-through; text-decoration-thickness:1.5px; }
+    .f3sw-row-closed .f3sw-time-val { color:#d0a6ad; }
+    .f3sw-reason { font-size:11px; font-weight:600; color:#a01021; text-align:right; line-height:1.25; max-width:150px; }
     .f3sw-footer { background:#f7f7f7; border-top:1px solid #eee; padding:9px 16px; display:flex; justify-content:space-between; }
     .f3sw-footer a { font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#888; text-decoration:none; }
     .f3sw-loading, .f3sw-error { padding:32px 16px; text-align:center; color:#aaa; font-size:13px; }
@@ -135,6 +152,13 @@ function f3sw_shortcode( $atts ): string {
       var daysAhead = <?php echo intval($atts['days']); ?>;
       var title     = <?php echo json_encode(esc_js($atts['title'])); ?>;
       var showQ     = <?php echo $atts['show_q'] === 'false' ? 'false' : 'true'; ?>;
+      var closedMode = <?php echo json_encode($atts['closed'] === 'hide' ? 'hide' : 'badge'); ?>;
+
+      // Escape human-typed text (AO names, Q names, closure reasons)
+      function esc(t) {
+        return String(t == null ? '' : t)
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
       var wrap      = document.getElementById(uid);
 
       var today = new Date();
@@ -146,6 +170,7 @@ function f3sw_shortcode( $atts ): string {
         .then(function(r){ return r.json(); })
         .then(function(data){
           var events = (data.events || []).filter(function(e){
+            if (closedMode === 'hide' && e.seriesException === 'closed') return false;
             return e.startDate >= tStr && e.startDate <= eStr && e.startTime;
           });
           if (!events.length) { wrap.innerHTML = '<div class="f3sw-error">No workouts scheduled in the next ' + daysAhead + ' days.</div>'; return; }
@@ -167,9 +192,19 @@ function f3sw_shortcode( $atts ): string {
               var ap=h>=12?'PM':'AM', h12=h>12?h-12:(h===0?12:h);
               var types=e.eventTypes||[], tn=types.length?types[0].name.toLowerCase():'bc';
               var tc=tn.includes('run')?'run':tn.includes('ruck')?'ruck':(tn.includes('bike')||tn.includes('cycl'))?'bike':'bc';
-              var pills=types.map(function(t){return '<span class="f3sw-pill f3sw-pill-'+tc+'">'+t.name+'</span>';}).join('');
-              var qHtml=!showQ?'':e.plannedQs?'<div class="f3sw-q-lbl">Q</div><div class="f3sw-q-name">'+e.plannedQs+'</div>':'<div class="f3sw-q-open">Q Open</div>';
-              html+='<div class="f3sw-row"><div><div class="f3sw-time-val">'+h12+':'+m+'</div><div class="f3sw-time-ap">'+ap+'</div></div><div><div class="f3sw-name">'+(e.orgName||e.name)+'</div><div class="f3sw-pills">'+pills+'</div></div><div>'+qHtml+'</div></div>';
+              var isClosed = e.seriesException === 'closed';
+              var isMoved  = e.seriesException === 'different-time';
+              var pills=types.map(function(t){return '<span class="f3sw-pill f3sw-pill-'+tc+'">'+esc(t.name)+'</span>';}).join('');
+              // The closed tag goes first so it is the first thing read
+              if (isMoved)  pills = '<span class="f3sw-pill f3sw-pill-changed">Time Changed</span>' + pills;
+              if (isClosed) pills = '<span class="f3sw-pill f3sw-pill-closed">Closed</span>' + pills;
+              // For a closed workout the reason matters more than the Q
+              var qHtml = isClosed
+                ? '<div class="f3sw-q-lbl">Closed</div><div class="f3sw-reason">'+esc(e.seriesExceptionReason||'No workout today')+'</div>'
+                : !showQ ? ''
+                : e.plannedQs ? '<div class="f3sw-q-lbl">Q</div><div class="f3sw-q-name">'+esc(e.plannedQs)+'</div>'
+                : '<div class="f3sw-q-open">Q Open</div>';
+              html+='<div class="f3sw-row'+(isClosed?' f3sw-row-closed':'')+'"><div><div class="f3sw-time-val">'+h12+':'+m+'</div><div class="f3sw-time-ap">'+ap+'</div></div><div><div class="f3sw-name">'+esc(e.orgName||e.name)+'</div><div class="f3sw-pills">'+pills+'</div></div><div>'+qHtml+'</div></div>';
             });
             html += '</div>';
           });

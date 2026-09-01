@@ -14,6 +14,7 @@ A single HTML file you can drop on any website to show your region's live workou
    BEARER_TOKEN  : 'f3_xxxxx...',           // ← your bearer token
    WIDGET_TITLE  : 'F3 Raleigh',            // ← your region name
    REGION_URL    : 'https://yoursite.com',  // ← your website
+   CLOSED_MODE   : 'badge',                 // ← see "Closed AOs" below
    ```
 3. Save the file
 
@@ -39,6 +40,30 @@ Your bearer token is visible in the page source with this method. It's **read-on
 - Workout type badges: Bootcamp, Run, Ruck, Bike, Mobility
 - Q name when assigned, "Q Open" badge when not
 - Preblast indicator when posted
+- **Closed AOs** struck through with the reason — see below
+
+## Closed AOs (convergences, holidays, weather)
+
+When you close an AO for a single day in Slack, the widget now shows it
+**struck through with a red CLOSED tag and the reason you typed**, instead of
+advertising a workout that is not happening. A Downranger checking your site
+can see at a glance where *not* to go.
+
+Set how it behaves with `CLOSED_MODE` in the CONFIG section:
+
+| Value | What happens |
+|---|---|
+| `'badge'` *(default)* | Keeps the workout on the schedule, struck through, tagged **CLOSED**, with the reason where the Q name normally goes. Recommended — silence looks the same as "no closure". |
+| `'hide'` | Removes closed workouts from the schedule entirely. |
+
+Workouts moved to a different time for one day are tagged **TIME CHANGED**.
+
+**Why this needs a second API call:** closing an AO in Slack marks the event
+instance `seriesException = "closed"`, but the event stays *active* and the
+schedule endpoint the widget uses (`calendar-home-schedule`) does not return
+that field. The widget therefore also reads the `event-instance` list
+endpoint, which does return it, and matches the two by event id. If that
+second call fails, the schedule still renders — just without closure tags.
 
 ## Questions / Help
 Post in the F3 Nation tech Slack or reach out to **Deflated** (F3 Waxhaw).

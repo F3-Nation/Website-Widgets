@@ -256,6 +256,99 @@ function f3api_cached_request( string $cache_key, string $path, int $cache_minut
 }
 
 /**
+ * Fetch this region's one-off schedule exceptions (closures, time changes).
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * When a region closes an AO for a single day in Slack (a convergence, a
+ * holiday, bad weather), F3 Nation records that on the event INSTANCE as
+ * seriesException = 'closed'. The event stays ACTIVE, and the
+ * /event-instance/calendar-home-schedule endpoint every schedule widget uses
+ * does NOT return the seriesException column. So the schedule feed on its own
+ * cannot tell a closed workout from a live one, and a widget will happily
+ * advertise a workout that is not happening — which is how a Downranger ends
+ * up alone in an empty field.
+ *
+ * The /event-instance list endpoint DOES return seriesException, along with
+ * the reason the Q typed, in meta.series_exception_reason. This reads that
+ * list and keys it by event id so callers can match the two together.
+ *
+ * @param int    $region_id  Region orgId (defaults to the configured region)
+ * @param string $start_date YYYY-MM-DD to read forward from (defaults to today)
+ * @return array [ event_id => ['status' => 'closed', 'reason' => '...'] ]
+ *               Returns whatever it collected on failure — a schedule without
+ *               closure flags still beats no schedule at all.
+ */
+function f3api_exceptions( int $region_id = 0, string $start_date = '' ): array {
+    $region_id  = $region_id ?: f3api_region_id();
+    $start_date = $start_date ?: date('Y-m-d');
+    $cache_key  = 'f3_exceptions_' . $region_id . '_' . $start_date;
+
+    $cached = get_transient( $cache_key );
+    if ( $cached !== false ) return $cached;
+
+    $page_size = 100;   // the API caps page size at 100
+    $max_pages = 6;     // safety stop — far more than any region needs
+    $map       = [];
+
+    for ( $i = 0; $i < $max_pages; $i++ ) {
+        $data = f3api_request(
+            '/v1/event-instance?regionOrgId=' . $region_id
+            . '&startDate=' . $start_date
+            . '&pageIndex=' . $i
+            . '&pageSize=' . $page_size
+        );
+
+        if ( isset( $data['error'] ) ) {
+            return $map;   // don't cache a partial read caused by an error
+        }
+
+        $rows = $data['eventInstances'] ?? [];
+        foreach ( $rows as $row ) {
+            if ( empty( $row['seriesException'] ) ) {
+                continue;   // a normal, running workout
+            }
+            $map[ $row['id'] ] = [
+                'status' => $row['seriesException'],
+                'reason' => $row['meta']['series_exception_reason'] ?? '',
+            ];
+        }
+
+        if ( count( $rows ) < $page_size ) {
+            break;   // ran out of instances
+        }
+    }
+
+    set_transient( $cache_key, $map, 30 * MINUTE_IN_SECONDS );
+    return $map;
+}
+
+/**
+ * Stamp closure info from f3api_exceptions() onto a list of schedule events.
+ *
+ * Adds two keys to every event: 'seriesException' ('closed',
+ * 'different-time' or null) and 'seriesExceptionReason' (free text).
+ * Call this on the events array from calendar-home-schedule before rendering.
+ *
+ * @param array $events    Events from calendar-home-schedule
+ * @param int   $region_id Region orgId (defaults to the configured region)
+ * @return array The same events, each with the two extra keys
+ */
+function f3api_mark_exceptions( array $events, int $region_id = 0 ): array {
+    if ( empty( $events ) ) return $events;
+
+    $exceptions = f3api_exceptions( $region_id );
+    foreach ( $events as &$ev ) {
+        $id = $ev['id'] ?? null;
+        $ev['seriesException']       = $exceptions[$id]['status'] ?? null;
+        $ev['seriesExceptionReason'] = $exceptions[$id]['reason'] ?? '';
+    }
+    unset( $ev );
+
+    return $events;
+}
+
+/**
  * Clear all F3 API caches.
  * Called when settings are saved.
  */

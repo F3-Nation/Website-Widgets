@@ -84,6 +84,11 @@ function f3ue_get_events(): array {
         return ! in_array($series_id, $ao_ids) && ! in_array($org_id, $ao_ids);
     }));
 
+    // Mark any events closed or moved for a single day. The schedule
+    // endpoint above cannot report this on its own — see f3api_exceptions()
+    // in the F3 Nation API plugin for why.
+    $special = f3api_mark_exceptions( $special );
+
     set_transient('f3_ue_events', $special, 30 * MINUTE_IN_SECONDS);
     return $special;
 }
@@ -133,8 +138,13 @@ function f3ue_shortcode( $atts ): string {
             $h12     = $h > 12 ? $h - 12 : ($h === 0 ? 12 : $h);
             $types   = $e['eventTypes'] ?? [];
             $type    = $types[0]['name'] ?? 'Event';
+            // Has this event been closed for this one day (convergence,
+            // holiday, weather)? If so we keep it listed but strike it out,
+            // so nobody turns up to an event that is not happening.
+            $isClosed = ( $e['seriesException'] ?? null ) === 'closed';
+            $reason   = $e['seriesExceptionReason'] ?? '';
           ?>
-          <div class="f3ue-card <?php echo $isToday ? 'f3ue-today' : ''; ?>">
+          <div class="f3ue-card <?php echo $isToday ? 'f3ue-today' : ''; ?> <?php echo $isClosed ? 'f3ue-closed' : ''; ?>">
             <div class="f3ue-date-block">
               <div class="f3ue-day"><?php echo esc_html($d->format('j')); ?></div>
               <div class="f3ue-month"><?php echo esc_html($months[$d->format('n') - 1]); ?></div>
@@ -147,7 +157,12 @@ function f3ue_shortcode( $atts ): string {
                   <span><?php echo esc_html($h12 . ':' . $m . ' ' . $ap); ?></span>
                 <?php endif; ?>
                 <span class="f3ue-type"><?php echo esc_html($type); ?></span>
-                <?php if ($atts['show_q'] === 'true' && !empty($e['plannedQs'])): ?>
+                <?php if ($isClosed): ?>
+                  <span class="f3ue-closed-tag">Closed</span>
+                  <?php if ($reason): ?>
+                    <span class="f3ue-reason"><?php echo esc_html($reason); ?></span>
+                  <?php endif; ?>
+                <?php elseif ($atts['show_q'] === 'true' && !empty($e['plannedQs'])): ?>
                   <span>Q: <strong><?php echo esc_html($e['plannedQs']); ?></strong></span>
                 <?php endif; ?>
                 <?php if ($e['hasPreblast'] ?? false): ?>
@@ -176,6 +191,11 @@ function f3ue_shortcode( $atts ): string {
     .f3ue-meta { display:flex; flex-wrap:wrap; gap:8px; font-size:13px; color:#666; }
     .f3ue-type { background:#f0f0f0; color:#444; font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:2px 8px; border-radius:12px; }
     .f3ue-preblast { background:#dcf5e6; color:#1a6b35; font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:2px 8px; border-radius:12px; }
+    /* An event closed for this one day — struck through so nobody turns up */
+    .f3ue-closed-tag { background:#fde2e4; color:#a01021; font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:2px 8px; border-radius:12px; }
+    .f3ue-reason { color:#a01021; font-weight:600; }
+    .f3ue-closed .f3ue-name { color:#9a9a9a; text-decoration:line-through; text-decoration-thickness:1.5px; }
+    .f3ue-closed .f3ue-date-block { opacity:.55; }
     .f3ue-empty { color:#888; font-style:italic; }
     @media (max-width:480px) { .f3ue-meta { flex-direction:column; gap:4px; } }
     </style>

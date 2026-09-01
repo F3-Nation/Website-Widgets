@@ -94,9 +94,78 @@ function f3sp_get_schedule( WP_REST_Request $req ): WP_REST_Response {
         return new WP_REST_Response(['error' => 'F3 Nation API returned error ' . $code], 502);
     }
 
+    // Stamp on any one-off closures / time changes before caching.
+    // Failure here is not fatal — a schedule without closure flags still
+    // beats no schedule at all.
+    $exceptions = f3sp_fetch_exceptions( $region_id, $today, $token );
+    if ( ! empty( $body['events'] ) && is_array( $body['events'] ) ) {
+        foreach ( $body['events'] as &$ev ) {
+            $id = $ev['id'] ?? null;
+            $ev['seriesException']       = $exceptions[$id]['status'] ?? null;
+            $ev['seriesExceptionReason'] = $exceptions[$id]['reason'] ?? '';
+        }
+        unset( $ev );
+    }
+
     // Cache the successful response for 30 minutes
     set_transient( $cache_key, $body, 30 * MINUTE_IN_SECONDS );
     return rest_ensure_response( $body );
+}
+
+// ── One-off closures and time changes ──────────────────────────────────────
+// When a region closes an AO for a day in Slack, F3 Nation records that on the
+// event instance as seriesException = 'closed' — but the event stays ACTIVE,
+// and the calendar-home-schedule endpoint does NOT return the seriesException
+// field. So the schedule feed alone cannot tell a closed workout from a live
+// one, and a widget would advertise a workout that is not happening.
+//
+// The event-instance list endpoint DOES return seriesException (and the
+// reason, in meta.series_exception_reason), so we read it here and match the
+// two lists together by event id.
+//
+// Returns [ event_id => ['status' => 'closed', 'reason' => '...'] ].
+// Returns whatever it managed to collect on failure — never throws.
+function f3sp_fetch_exceptions( int $region_id, string $start_date, string $token ): array {
+    $page_size = 100;   // the API caps page size at 100
+    $max_pages = 6;     // safety stop — far more than any region needs
+    $map       = [];
+
+    for ( $i = 0; $i < $max_pages; $i++ ) {
+        $url = 'https://api.f3nation.com/v1/event-instance'
+             . '?regionOrgId=' . $region_id
+             . '&startDate=' . $start_date
+             . '&pageIndex=' . $i
+             . '&pageSize=' . $page_size;
+
+        $res = wp_remote_get( $url, [
+            'headers' => [
+                'Authorization' => 'Bearer ' . $token,
+                'client'        => 'f3-schedule-proxy',
+            ],
+            'timeout' => 15,
+        ]);
+
+        if ( is_wp_error( $res ) || wp_remote_retrieve_response_code( $res ) !== 200 ) {
+            break;
+        }
+
+        $rows = json_decode( wp_remote_retrieve_body( $res ), true )['eventInstances'] ?? [];
+        foreach ( $rows as $row ) {
+            if ( empty( $row['seriesException'] ) ) {
+                continue;   // a normal, running workout
+            }
+            $map[ $row['id'] ] = [
+                'status' => $row['seriesException'],
+                'reason' => $row['meta']['series_exception_reason'] ?? '',
+            ];
+        }
+
+        if ( count( $rows ) < $page_size ) {
+            break;   // ran out of instances
+        }
+    }
+
+    return $map;
 }
 
 // ── Settings page ──────────────────────────────────────────────────────────

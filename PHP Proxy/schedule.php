@@ -85,6 +85,91 @@ if (file_exists($cache_file) && (time() - filemtime($cache_file)) < (F3_CACHE_MI
     exit;
 }
 
+// ── Small helper: GET a URL from the F3 Nation API ───────────────────────
+// Returns [body_string, http_code]. Uses cURL when available and falls back
+// to file_get_contents, mirroring what the main request below does.
+function f3_api_get(string $url): array {
+    $headers = [
+        'Authorization: Bearer ' . F3_BEARER_TOKEN,
+        'client: f3-schedule-proxy',
+    ];
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_HTTPHEADER     => $headers,
+        ]);
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+        return $err ? ['', 0] : [$body, $code];
+    }
+
+    $context = stream_context_create(['http' => [
+        'method'  => 'GET',
+        'header'  => implode("
+", $headers) . "
+",
+        'timeout' => 15,
+    ]]);
+    $body = @file_get_contents($url, false, $context);
+    return $body === false ? ['', 0] : [$body, 200];
+}
+
+// ── One-off closures and time changes ────────────────────────────────────
+// When a region closes an AO for a day in Slack, F3 Nation records that on
+// the event instance as seriesException = 'closed' — but the event stays
+// ACTIVE, and the calendar-home-schedule endpoint below does NOT return the
+// seriesException field. So the schedule feed alone cannot tell a closed
+// workout from a live one, and the widget would advertise a workout that is
+// not happening.
+//
+// The event-instance list endpoint DOES return seriesException (and the
+// reason, in meta.series_exception_reason), so we read it here and match the
+// two lists together by event id.
+//
+// Returns [ event_id => ['status' => 'closed', 'reason' => '...'] ].
+// Returns whatever it collected on failure — a schedule without closure
+// flags still beats no schedule at all.
+function f3_fetch_exceptions(int $region_id, string $start_date): array {
+    $page_size = 100;   // the API caps page size at 100
+    $max_pages = 6;     // safety stop — far more than any region needs
+    $map       = [];
+
+    for ($i = 0; $i < $max_pages; $i++) {
+        $url = 'https://api.f3nation.com/v1/event-instance'
+             . '?regionOrgId=' . $region_id
+             . '&startDate=' . $start_date
+             . '&pageIndex=' . $i
+             . '&pageSize=' . $page_size;
+
+        [$body, $code] = f3_api_get($url);
+        if ($code !== 200) {
+            break;
+        }
+
+        $rows = json_decode($body, true)['eventInstances'] ?? [];
+        foreach ($rows as $row) {
+            if (empty($row['seriesException'])) {
+                continue;   // a normal, running workout
+            }
+            $map[$row['id']] = [
+                'status' => $row['seriesException'],
+                'reason' => $row['meta']['series_exception_reason'] ?? '',
+            ];
+        }
+
+        if (count($rows) < $page_size) {
+            break;   // ran out of instances
+        }
+    }
+
+    return $map;
+}
+
 // ── Fetch from F3 Nation API ──────────────────────────────────────────────
 $today   = date('Y-m-d');
 $api_url = 'https://api.f3nation.com/v1/event-instance/calendar-home-schedule'
@@ -134,6 +219,19 @@ if ($code !== 200) {
     http_response_code(502);
     echo json_encode(['error' => 'F3 Nation API returned error ' . $code]);
     exit;
+}
+
+// ── Stamp on the one-off closures before caching ─────────────────────────
+$payload = json_decode($body, true);
+if (is_array($payload) && !empty($payload['events'])) {
+    $exceptions = f3_fetch_exceptions($region_id, $today);
+    foreach ($payload['events'] as &$ev) {
+        $id = $ev['id'] ?? null;
+        $ev['seriesException']       = $exceptions[$id]['status'] ?? null;
+        $ev['seriesExceptionReason'] = $exceptions[$id]['reason'] ?? '';
+    }
+    unset($ev);
+    $body = json_encode($payload);
 }
 
 // Cache the response and return it

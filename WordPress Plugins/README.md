@@ -31,7 +31,11 @@ These four work immediately after installing `f3-nation-api`. No additional setu
 **Shortcode:** `[f3_schedule]`
 Live workout schedule on any page or sidebar. Shows time, AO name, workout type, Q name or "Q Open" badge. Also registers a secure proxy endpoint at `/wp-json/f3/v1/region-schedule` that other sites can use.
 
-Options: `[f3_schedule days="7"]` · `[f3_schedule title="Our Workouts"]` · `[f3_schedule max_width="600"]`
+Options: `[f3_schedule days="7"]` · `[f3_schedule title="Our Workouts"]` · `[f3_schedule max_width="600"]` · `[f3_schedule closed="hide"]`
+
+AOs you close for a single day in Slack (convergence, holiday, weather) are shown
+struck through with a red **CLOSED** tag and the reason, so nobody turns up to an
+empty field. Use `closed="hide"` to drop them from the list instead.
 
 ### f3-upcoming-events
 **Shortcode:** `[f3_events]`
