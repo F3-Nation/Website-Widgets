@@ -53,6 +53,20 @@ https://your-site.netlify.app/?regionOrgId=XXXXX&title=F3+Raleigh
 
 **Any other platform:** Use an iframe or HTML embed block with the same URL.
 
+## More pages in this folder
+
+The same deploy (same `F3_BEARER_TOKEN`) also serves these pages. Each one takes its settings from the URL, so there is nothing to edit.
+
+| Page | What it shows | Example URL |
+|---|---|---|
+| `numbers.html` | **Daily Numbers** — PAX (and FNG) count at each AO for a day, from submitted backblasts. Built for the Weasel Shaker to screenshot or copy into Slack. Only AOs with a backblast posted appear. | `/numbers.html?regionOrgId=XXXXX&title=F3+Raleigh` (optional `&date=YYYY-MM-DD`) |
+| `missing-backblasts.html` | **Cold Cases** — past workouts that still have no backblast. | `/missing-backblasts.html?regionOrgId=XXXXX` |
+| `my-qs.html` | **My Qs** — every workout a PAX has Q'd or Co-Q'd in a year. Can look the user up by email. | `/my-qs.html?regionOrgId=XXXXX&userId=12345` (optional `&year=2025`, `&year=0` = all time) |
+
+Their functions are `region-numbers`, `region-missing-backblasts`, `region-my-qs` and `region-user-by-email`, alongside `region-schedule`.
+
+> The F3 Nation API caps `pageSize` at **100** (since Sep 2026); a larger value returns HTTP 400. `region-numbers` pages through results 100 at a time.
+
 ## Troubleshooting
 
 **404 on the function URL**

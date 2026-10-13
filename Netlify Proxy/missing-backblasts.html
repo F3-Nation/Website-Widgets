@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  F3 NATION MISSING BACKBLASTS WIDGET ("COLD CASES")
+  ============================================================
+  This file shows your region's past workouts that do NOT yet
+  have a backblast posted. Data is pulled live from the F3
+  Nation API. It is self-contained — no plugins, no accounts,
+  no maintenance required.
+
+  HOW TO USE THIS ON YOUR WEBSITE
+  --------------------------------
+  You only need to do THREE things:
+
+  STEP 1 — Find the CONFIG section below (search for "CONFIG")
+           and fill in your region's values. There are only
+           5 things to change. Instructions are next to each one.
+
+  STEP 2 — Copy the widget HTML block (marked with
+           "COPY FROM HERE" and "END COPY") and paste it
+           wherever you want the widget to appear on your page.
+
+  STEP 3 — Copy the <style> block and the <script> block into
+           your page as well. Both are clearly marked.
+
+  COMMON WEBSITE PLATFORMS
+  -------------------------
+  WordPress  → Use a "Custom HTML" block in the page editor
+  Squarespace → Add a "Code Block" in your page
+  Wix        → Add an "HTML iFrame" widget
+  Weebly     → Use the "Embed Code" element
+  Raw HTML   → Paste directly into your page's HTML file
+
+  NEED HELP?
+  ----------
+  If you're not sure what your REGION_ORG_ID is, ask in the
+  F3 tech channel and someone can look it up for you. No API
+  token is needed — authentication is handled securely on the
+  server. This file is safe to share publicly.
+  ============================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F3 Missing Backblasts</title>
+
+<!--
+  ============================================================
+  STYLES — copy this entire <style>...</style> block into your
+  page's <head> section, or into your site's CSS file.
+  ============================================================
+-->
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+#f3-cc {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: #fff;
+  color: #111;
+  max-width: 520px;
+  width: 100%;
+  border: 1px solid #ddd;
+}
+
+/* HEADER */
+.f3cc-hdr {
+  background: #111;
+  color: #fff;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.f3cc-hdr-mark {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+.f3cc-hdr-text { flex: 1; }
+.f3cc-hdr-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  line-height: 1;
+}
+.f3cc-hdr-tag {
+  font-size: 10px;
+  color: #aaa;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+.f3cc-hdr-label {
+  font-size: 10px;
+  color: #888;
+  text-align: right;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+
+/* STAT BAR */
+.f3cc-stat {
+  background: #c8102e;
+  color: #fff;
+  padding: 14px 18px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.f3cc-stat-num {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+.f3cc-stat-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #ffd5dc;
+  line-height: 1.4;
+  text-align: right;
+}
+
+/* AO LEADERBOARD (top offenders) */
+.f3cc-board {
+  padding: 12px 18px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.f3cc-board-lbl {
+  width: 100%;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 4px;
+}
+.f3cc-board-chip {
+  background: #f7f7f7;
+  border: 1px solid #e5e5e5;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #333;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.f3cc-board-chip strong {
+  color: #c8102e;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* DAY GROUPS */
+.f3cc-day { border-bottom: 1px solid #eee; }
+.f3cc-day:last-child { border-bottom: none; }
+
+.f3cc-day-hdr {
+  background: #f7f7f7;
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #555;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.f3cc-day-age {
+  font-weight: 400;
+  opacity: .7;
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+/* EVENT ROWS */
+.f3cc-row {
+  padding: 10px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  display: grid;
+  grid-template-columns: 62px 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+.f3cc-row:last-child { border-bottom: none; }
+.f3cc-row:hover { background: #fafafa; }
+
+.f3cc-time { text-align: right; line-height: 1; }
+.f3cc-time-val {
+  font-size: 16px;
+  font-weight: 800;
+  color: #c8102e;
+  font-variant-numeric: tabular-nums;
+}
+.f3cc-time-ap {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+.f3cc-ao {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: .01em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+.f3cc-evname {
+  font-size: 11px;
+  color: #888;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+.f3cc-age {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #aaa;
+  text-align: right;
+  min-width: 64px;
+  line-height: 1.2;
+}
+.f3cc-age strong {
+  display: block;
+  font-size: 15px;
+  color: #111;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* STATE */
+.f3cc-state {
+  padding: 36px 18px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #aaa;
+}
+.f3cc-state-spin {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #eee;
+  border-top-color: #c8102e;
+  border-radius: 50%;
+  animation: f3ccspin .7s linear infinite;
+  margin: 0 auto 12px;
+}
+@keyframes f3ccspin { to { transform: rotate(360deg); } }
+
+.f3cc-state-ok {
+  padding: 40px 18px;
+  text-align: center;
+}
+.f3cc-state-ok-icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+.f3cc-state-ok-txt {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #1a6b35;
+}
+
+/* FOOTER */
+.f3cc-ftr {
+  background: #f7f7f7;
+  border-top: 1px solid #eee;
+  padding: 9px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.f3cc-ftr a {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #888;
+  text-decoration: none;
+}
+.f3cc-ftr a:hover { color: #111; }
+.f3cc-ftr-brand {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #c8102e;
+}
+
+/* NOTE BAR — tells the user if the API limit was hit */
+.f3cc-note {
+  background: #fff8dc;
+  border-top: 1px solid #f0e5a8;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: #7a5010;
+  text-align: center;
+  font-weight: 500;
+}
+</style>
+</head>
+
+<body style="background:#e5e5e5;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px">
+
+<!-- ============================================================
+     COPY FROM HERE — paste this div wherever you want the
+     widget to appear on your page.
+     ============================================================ -->
+<div id="f3-cc">
+
+  <!-- Header -->
+  <div class="f3cc-hdr">
+    <img src="data:image/webp;base64,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" class="f3cc-hdr-mark" alt="F3" style="width:42px;height:42px;object-fit:contain;background:#fff;border-radius:3px;padding:2px">
+    <div class="f3cc-hdr-text">
+      <div class="f3cc-hdr-name" id="f3cc-name">F3 Nation</div>
+      <div class="f3cc-hdr-tag">Fitness · Fellowship · Faith</div>
+    </div>
+    <div class="f3cc-hdr-label">Cold<br>Cases</div>
+  </div>
+
+  <!-- Main body — populated by script -->
+  <div id="f3cc-body">
+    <div class="f3cc-state"><div class="f3cc-state-spin"></div>Loading cold cases…</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="f3cc-ftr">
+    <a href="https://f3nation.com" target="_blank">F3Nation.com</a>
+    <div class="f3cc-ftr-brand">F3 Nation</div>
+    <a id="f3cc-sitelink" href="https://f3nation.com" target="_blank">Our Site →</a>
+  </div>
+
+</div>
+<!-- ============================================================
+     END COPY
+     ============================================================ -->
+
+
+<!-- ============================================================
+     SCRIPT — copy this entire <script>...</script> block and
+     paste it just before the </body> tag on your page.
+     ============================================================ -->
+<script>
+
+// ============================================================
+// CONFIG — THIS IS THE ONLY PART YOU NEED TO CHANGE
+// ============================================================
+var F3CC = {
+
+  // YOUR REGION'S ID NUMBER from F3 Nation.
+  // Find it in the F3 Nation app under: Settings → Region → orgId
+  // Or ask in the F3 tech channel and someone can look it up for you.
+  // Reads regionOrgId from the URL automatically.
+  // e.g. https://your-site.netlify.app/missing-backblasts.html?regionOrgId=25273
+  // If not in URL, falls back to the default below.
+  REGION_ORG_ID : new URLSearchParams(window.location.search).get('regionOrgId') || 25273,
+
+  // The URL of your Netlify deployment.
+  // Leave this as-is — it automatically points to your Netlify site.
+  PROXY_URL : window.location.origin,
+
+  // How far back to look for missing backblasts.
+  // 30 = last month, 90 = last quarter (default), 365 = past year.
+  // Use 0 for "since January 1 of the current year".
+  // Override with ?daysBack=30 in the URL.
+  DAYS_BACK : (function(){
+    var v = new URLSearchParams(window.location.search).get('daysBack');
+    return v === null ? 90 : parseInt(v, 10);
+  })(),
+
+  // Your region's name — shown in the widget header.
+  WIDGET_TITLE  : new URLSearchParams(window.location.search).get('title') || 'F3 Nation',
+
+  // The URL of your region's website (shown in footer).
+  REGION_URL    : new URLSearchParams(window.location.search).get('siteUrl') || 'https://f3nation.com',
+
+};
+// ============================================================
+// END CONFIG
+// ============================================================
+
+
+(function() {
+
+  document.getElementById('f3cc-name').textContent = F3CC.WIDGET_TITLE;
+  var sl = document.getElementById('f3cc-sitelink');
+  if (sl) sl.href = F3CC.REGION_URL;
+
+  var url = F3CC.PROXY_URL
+    + '/.netlify/functions/region-missing-backblasts'
+    + '?regionOrgId=' + encodeURIComponent(F3CC.REGION_ORG_ID)
+    + '&daysBack='    + encodeURIComponent(F3CC.DAYS_BACK);
+
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+
+      if (data.error) {
+        document.getElementById('f3cc-body').innerHTML =
+          '<div class="f3cc-state">Could not load cold cases —<br>' + data.error + '</div>';
+        return;
+      }
+
+      var events = data.events || [];
+
+      if (!events.length) {
+        document.getElementById('f3cc-body').innerHTML =
+          '<div class="f3cc-state-ok">'
+            + '<div class="f3cc-state-ok-icon">✓</div>'
+            + '<div class="f3cc-state-ok-txt">All caught up — no cold cases</div>'
+          + '</div>';
+        return;
+      }
+
+      // Stat bar
+      var sinceLabel = data.cutoff
+        ? 'Since ' + formatShortDate(data.cutoff)
+        : 'Missing backblasts';
+      var html = ''
+        + '<div class="f3cc-stat">'
+        +   '<div class="f3cc-stat-num">' + events.length + '</div>'
+        +   '<div class="f3cc-stat-lbl">Missing<br>Backblasts<br>' + sinceLabel + '</div>'
+        + '</div>';
+
+      // AO leaderboard (top 6 AOs by count)
+      var byAo = {};
+      events.forEach(function(e){
+        var ao = e.orgName || e.name || 'Unknown';
+        byAo[ao] = (byAo[ao] || 0) + 1;
+      });
+      var leaderboard = Object.keys(byAo)
+        .map(function(k){ return { name: k, count: byAo[k] }; })
+        .sort(function(a,b){ return b.count - a.count; })
+        .slice(0, 6);
+
+      if (leaderboard.length > 1) {
+        html += '<div class="f3cc-board">';
+        html += '<div class="f3cc-board-lbl">Top Offenders</div>';
+        leaderboard.forEach(function(l){
+          html += '<span class="f3cc-board-chip"><strong>' + l.count + '</strong>' + escapeHtml(l.name) + '</span>';
+        });
+        html += '</div>';
+      }
+
+      // Group events by date (they come newest-first already)
+      var byDate = {};
+      events.forEach(function(e){
+        if (!byDate[e.startDate]) byDate[e.startDate] = [];
+        byDate[e.startDate].push(e);
+      });
+
+      var dates = Object.keys(byDate).sort().reverse();  // newest first
+      var days  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      var mons  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+      var todayLocal = new Date();
+      todayLocal.setHours(0,0,0,0);
+
+      dates.forEach(function(ds){
+        var d       = new Date(ds + 'T12:00:00');
+        var dName   = days[d.getDay()];
+        var dDate   = mons[d.getMonth()] + ' ' + d.getDate();
+        var ageDays = Math.round((todayLocal - new Date(ds + 'T12:00:00')) / 86400000);
+        var ageTxt  = ageDays === 1 ? '1 day ago' : ageDays + ' days ago';
+
+        html += '<div class="f3cc-day">';
+        html += '<div class="f3cc-day-hdr">'
+             +   '<span>' + dName + ' <span style="font-weight:400;opacity:.7">' + dDate + '</span></span>'
+             +   '<span class="f3cc-day-age">' + ageTxt + '</span>'
+             + '</div>';
+
+        byDate[ds]
+          .sort(function(a,b){ return (a.orgName || '').localeCompare(b.orgName || ''); })
+          .forEach(function(e){
+            var raw = e.startTime || '';
+            var timeHtml = '<div class="f3cc-time-val">—</div>';
+            if (raw && raw.length >= 4) {
+              var h   = parseInt(raw.slice(0,2), 10);
+              var m   = raw.slice(2,4);
+              var ap  = h >= 12 ? 'PM' : 'AM';
+              var h12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+              timeHtml = '<div class="f3cc-time-val">' + h12 + ':' + m + '</div>'
+                      + '<div class="f3cc-time-ap">' + ap + '</div>';
+            }
+
+            var ao      = e.orgName || e.name || 'Unknown';
+            var evName  = (e.name && e.name !== ao) ? e.name : '';
+
+            html += '<div class="f3cc-row">'
+                 +   '<div class="f3cc-time">' + timeHtml + '</div>'
+                 +   '<div>'
+                 +     '<div class="f3cc-ao">' + escapeHtml(ao) + '</div>'
+                 +     (evName ? '<div class="f3cc-evname">' + escapeHtml(evName) + '</div>' : '')
+                 +   '</div>'
+                 +   '<div class="f3cc-age"><strong>' + ageDays + '</strong>d old</div>'
+                 + '</div>';
+          });
+
+        html += '</div>';
+      });
+
+      if (data.apiLimitHit) {
+        html += '<div class="f3cc-note">'
+             + 'API returned the maximum ' + data.apiReturned + ' rows — older missing backblasts may not be shown. '
+             + 'Lower DAYS_BACK if the count feels wrong.'
+             + '</div>';
+      }
+
+      document.getElementById('f3cc-body').innerHTML = html;
+    })
+    .catch(function(err){
+      document.getElementById('f3cc-body').innerHTML =
+        '<div class="f3cc-state">Could not load cold cases —<br>check your region ID and token</div>';
+      console.error('[F3 Cold Cases]', err);
+    });
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function formatShortDate(iso) {
+    var d = new Date(iso + 'T12:00:00');
+    var mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return mons[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+  }
+
+})();
+
+</script>
+</body>
+</html>

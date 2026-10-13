@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  F3 NATION DAILY NUMBERS
+  ============================================================
+  Shows the PAX count posted at each AO on a given day, pulled
+  live from submitted backblasts on the F3 Nation API. Built for
+  a region's Weasel Shaker to screenshot and post the daily
+  numbers to Slack / social after the backblasts are in.
+
+  HOW TO USE
+  ----------
+  Open with your region's ID in the URL:
+     /numbers.html?regionOrgId=25207&title=F3%20Lexington
+  Optional params:
+     &siteUrl=https://your-site.com   (footer link)
+     &date=2026-07-13                 (jump straight to a day)
+
+  Only AOs that already have a backblast posted show up — so you
+  can't screenshot the numbers before they're actually in.
+
+  No API token is needed here — it's stored securely on the
+  server. This file is safe to share publicly.
+  ============================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F3 Daily Numbers</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: #e5e5e5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 14px 60px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Controls (NOT part of the screenshot) ── */
+.f3n-controls {
+  width: 100%;
+  max-width: 460px;
+  min-width: 0;              /* allow shrink below content on narrow screens */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.f3n-nav {
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #111;
+  font-size: 18px;
+  font-weight: 800;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.f3n-nav:hover { background: #111; color: #fff; border-color: #111; }
+.f3n-nav:disabled { opacity: .35; cursor: default; }
+.f3n-datewrap { flex: 1; min-width: 120px; position: relative; }
+.f3n-date {
+  width: 100%;
+  height: 42px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 15px;
+  font-family: inherit;
+  font-weight: 600;
+  color: #111;
+  background: #fff;
+}
+.f3n-copy {
+  height: 42px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 8px;
+  background: #c8102e;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.f3n-copy:hover { background: #a50d24; }
+.f3n-copy.done { background: #1a6b35; }
+
+/* ── The card (this is what gets screenshotted) ── */
+#f3n-card {
+  background: #fff;
+  color: #111;
+  max-width: 460px;
+  width: 100%;
+  min-width: 0;              /* allow shrink below content floor so the
+                               right-hand PAX numbers never get clipped */
+  border: 1px solid #ddd;
+  overflow: hidden;
+}
+
+.f3n-hdr {
+  background: #111;
+  color: #fff;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.f3n-hdr-mark {
+  width: 44px; height: 44px; flex-shrink: 0;
+  object-fit: contain; background: #fff; border-radius: 3px; padding: 2px;
+}
+.f3n-hdr-text { flex: 1; }
+.f3n-hdr-name { font-size: 17px; font-weight: 800; letter-spacing: .02em; line-height: 1; }
+.f3n-hdr-tag {
+  font-size: 10px; color: #aaa; letter-spacing: .12em;
+  text-transform: uppercase; margin-top: 4px;
+}
+.f3n-hdr-label {
+  font-size: 10px; color: #c8102e; text-align: right;
+  letter-spacing: .12em; text-transform: uppercase; font-weight: 800; line-height: 1.5;
+}
+
+/* Date banner */
+.f3n-dateband {
+  background: #c8102e;
+  color: #fff;
+  padding: 10px 20px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.f3n-dateband-day { font-size: 15px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.f3n-dateband-date { font-size: 12px; font-weight: 600; opacity: .85; }
+
+/* AO rows */
+.f3n-row {
+  padding: 13px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+.f3n-row:last-child { border-bottom: none; }
+.f3n-ao { min-width: 0; }
+.f3n-ao-name {
+  font-size: 16px; font-weight: 800; color: #111;
+  letter-spacing: .01em; line-height: 1.1; text-transform: uppercase;
+}
+.f3n-ao-sub {
+  font-size: 11px; color: #999; margin-top: 3px;
+  letter-spacing: .04em;
+}
+.f3n-ao-fng {
+  display: inline-block; margin-top: 5px;
+  font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 20px;
+  background: #dcf5e6; color: #1a6b35;
+}
+.f3n-count { text-align: right; line-height: 1; }
+.f3n-count-num {
+  font-size: 30px; font-weight: 800; color: #c8102e;
+  font-variant-numeric: tabular-nums; line-height: 1;
+}
+.f3n-count-lbl {
+  font-size: 9px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: #aaa; margin-top: 3px;
+}
+.f3n-count-none { font-size: 12px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: .06em; }
+
+/* Totals footer */
+.f3n-totals {
+  background: #111;
+  color: #fff;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  text-align: center;
+}
+.f3n-total-num { font-size: 26px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.f3n-total-num.red { color: #ff415f; }
+.f3n-total-lbl { font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #888; margin-top: 5px; }
+.f3n-total-div { width: 1px; align-self: stretch; background: #333; }
+
+.f3n-ftr {
+  background: #f7f7f7;
+  border-top: 1px solid #eee;
+  padding: 9px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.f3n-ftr a {
+  font-size: 11px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: #888; text-decoration: none;
+}
+.f3n-ftr a:hover { color: #111; }
+.f3n-ftr-brand { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #c8102e; }
+
+/* States */
+.f3n-state {
+  padding: 44px 22px; text-align: center; font-size: 13px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: #aaa;
+}
+.f3n-state-spin {
+  width: 26px; height: 26px; border: 3px solid #eee; border-top-color: #c8102e;
+  border-radius: 50%; animation: f3spin .7s linear infinite; margin: 0 auto 14px;
+}
+@keyframes f3spin { to { transform: rotate(360deg); } }
+
+.f3n-hint {
+  max-width: 460px; width: 100%; margin-top: 12px;
+  font-size: 11px; color: #999; text-align: center; line-height: 1.5;
+}
+</style>
+</head>
+<body>
+
+<!-- Controls — these are NOT inside the card, so they won't be in the screenshot -->
+<div class="f3n-controls">
+  <button class="f3n-nav" id="f3n-prev" title="Previous day">‹</button>
+  <div class="f3n-datewrap">
+    <input type="date" class="f3n-date" id="f3n-date">
+  </div>
+  <button class="f3n-nav" id="f3n-next" title="Next day">›</button>
+  <button class="f3n-copy" id="f3n-copy" title="Copy the numbers as text for Slack">Copy</button>
+</div>
+
+<!-- THE CARD — screenshot this -->
+<div id="f3n-card">
+  <div class="f3n-hdr">
+    <img src="data:image/webp;base64,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" class="f3n-hdr-mark" alt="F3">
+    <div class="f3n-hdr-text">
+      <div class="f3n-hdr-name" id="f3n-name">F3 Nation</div>
+      <div class="f3n-hdr-tag">Fitness · Fellowship · Faith</div>
+    </div>
+    <div class="f3n-hdr-label">Daily<br>Numbers</div>
+  </div>
+  <div id="f3n-body">
+    <div class="f3n-state"><div class="f3n-state-spin"></div>Loading numbers…</div>
+  </div>
+  <div class="f3n-ftr">
+    <a href="https://f3nation.com" target="_blank" rel="noopener">F3Nation.com</a>
+    <div class="f3n-ftr-brand">F3 Nation</div>
+    <a id="f3n-sitelink" href="https://f3nation.com" target="_blank" rel="noopener">Our Site →</a>
+  </div>
+</div>
+
+<div class="f3n-hint">
+  Pick a day above, then screenshot the card to post the numbers.<br>
+  Only AOs with a backblast already submitted are shown.
+</div>
+
+<script>
+var F3N = {
+  REGION_ORG_ID : new URLSearchParams(location.search).get('regionOrgId') || 25273,
+  PROXY_URL     : location.origin,
+  WIDGET_TITLE  : new URLSearchParams(location.search).get('title') || 'F3 Nation',
+  REGION_URL    : new URLSearchParams(location.search).get('siteUrl') || 'https://f3nation.com',
+  INIT_DATE     : new URLSearchParams(location.search).get('date') || null,
+};
+
+(function () {
+  var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var MONS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  var nameEl = document.getElementById('f3n-name');
+  var bodyEl = document.getElementById('f3n-body');
+  var dateEl = document.getElementById('f3n-date');
+  var prevEl = document.getElementById('f3n-prev');
+  var nextEl = document.getElementById('f3n-next');
+  var copyEl = document.getElementById('f3n-copy');
+  var siteEl = document.getElementById('f3n-sitelink');
+
+  nameEl.textContent = F3N.WIDGET_TITLE;
+  if (siteEl) siteEl.href = F3N.REGION_URL;
+
+  // Local (not UTC) YYYY-MM-DD so "today" matches the user's calendar day
+  function ymd(d) {
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  }
+  var todayStr = ymd(new Date());
+  var current = (F3N.INIT_DATE && /^\d{4}-\d{2}-\d{2}$/.test(F3N.INIT_DATE))
+    ? F3N.INIT_DATE : todayStr;
+
+  dateEl.max = todayStr;         // no future days — numbers don't exist yet
+  var lastRender = null;         // holds the current day object for Copy
+
+  function shiftDate(days) {
+    var d = new Date(current + 'T12:00:00');
+    d.setDate(d.getDate() + days);
+    var s = ymd(d);
+    if (s > todayStr) return;    // don't go into the future
+    current = s;
+    loadDate();
+  }
+
+  prevEl.addEventListener('click', function () { shiftDate(-1); });
+  nextEl.addEventListener('click', function () { shiftDate(1); });
+  dateEl.addEventListener('change', function () {
+    if (dateEl.value) { current = dateEl.value; loadDate(); }
+  });
+
+  function fmtTime(raw) {
+    if (!raw) return '';
+    var h = parseInt(raw.slice(0, 2), 10);
+    var m = raw.slice(2);
+    var ap = h >= 12 ? 'PM' : 'AM';
+    var h12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+    return h12 + ':' + m + ' ' + ap;
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function render(day) {
+    var d = new Date(current + 'T12:00:00');
+    var dName = current === todayStr ? 'Today' : DAYS[d.getDay()];
+    var dDate = DAYS[d.getDay()].slice(0, 3) + ', ' + MONS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+
+    var band =
+      '<div class="f3n-dateband">' +
+        '<span class="f3n-dateband-day">' + dName + '</span>' +
+        '<span class="f3n-dateband-date">' + dDate + '</span>' +
+      '</div>';
+
+    if (!day || !day.events.length) {
+      bodyEl.innerHTML = band +
+        '<div class="f3n-state">No backblasts posted<br>for this day yet</div>';
+      lastRender = null;
+      return;
+    }
+
+    var rows = day.events.map(function (e) {
+      var count = e.hasCount
+        ? '<div class="f3n-count-num">' + e.pax + '</div><div class="f3n-count-lbl">PAX</div>'
+        : '<div class="f3n-count-none">— </div><div class="f3n-count-lbl">no count</div>';
+      var sub = e.startTime ? '<div class="f3n-ao-sub">' + fmtTime(e.startTime) + '</div>' : '';
+      var fng = e.fng > 0 ? '<span class="f3n-ao-fng">' + e.fng + ' FNG' + (e.fng > 1 ? 's' : '') + '</span>' : '';
+      return '<div class="f3n-row">' +
+        '<div class="f3n-ao"><div class="f3n-ao-name">' + esc(e.ao) + '</div>' + sub +
+          (fng ? '<div>' + fng + '</div>' : '') +
+        '</div>' +
+        '<div class="f3n-count">' + count + '</div>' +
+      '</div>';
+    }).join('');
+
+    var totals =
+      '<div class="f3n-totals">' +
+        '<div><div class="f3n-total-num red">' + day.paxTotal + '</div><div class="f3n-total-lbl">Total PAX</div></div>' +
+        '<div class="f3n-total-div"></div>' +
+        '<div><div class="f3n-total-num">' + day.aoCount + '</div><div class="f3n-total-lbl">AOs Posting</div></div>' +
+        (day.fngTotal > 0
+          ? '<div class="f3n-total-div"></div><div><div class="f3n-total-num">' + day.fngTotal + '</div><div class="f3n-total-lbl">FNGs</div></div>'
+          : '') +
+      '</div>';
+
+    bodyEl.innerHTML = band + rows + totals;
+    lastRender = { day: day, dName: dName, dDate: dDate };
+  }
+
+  function copyText() {
+    if (!lastRender) return;
+    var day = lastRender.day;
+    var lines = [];
+    lines.push(F3N.WIDGET_TITLE + ' — Numbers, ' + lastRender.dDate);
+    day.events.forEach(function (e) {
+      var n = e.hasCount ? e.pax + ' PAX' : 'no count';
+      lines.push(e.ao + ': ' + n + (e.fng > 0 ? ' (' + e.fng + ' FNG' + (e.fng > 1 ? 's' : '') + ')' : ''));
+    });
+    lines.push('');
+    lines.push('Total: ' + day.paxTotal + ' PAX across ' + day.aoCount + ' AO' + (day.aoCount > 1 ? 's' : '') +
+      (day.fngTotal > 0 ? ', ' + day.fngTotal + ' FNG' + (day.fngTotal > 1 ? 's' : '') : ''));
+    var text = lines.join('\n');
+
+    var done = function () {
+      copyEl.textContent = 'Copied!';
+      copyEl.classList.add('done');
+      setTimeout(function () { copyEl.textContent = 'Copy'; copyEl.classList.remove('done'); }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { window.prompt('Copy the numbers:', text); });
+    } else {
+      window.prompt('Copy the numbers:', text);
+    }
+  }
+  copyEl.addEventListener('click', copyText);
+
+  var base = F3N.PROXY_URL + '/.netlify/functions/region-numbers'
+    + '?regionOrgId=' + encodeURIComponent(F3N.REGION_ORG_ID);
+
+  function spinner() {
+    dateEl.value = current;
+    nextEl.disabled = current >= todayStr;
+    bodyEl.innerHTML = '<div class="f3n-state"><div class="f3n-state-spin"></div>Loading numbers…</div>';
+    lastRender = null;
+  }
+
+  function showError(err) {
+    bodyEl.innerHTML =
+      '<div class="f3n-dateband"><span class="f3n-dateband-day">Error</span></div>' +
+      '<div class="f3n-state">Could not load numbers —<br>check the region ID</div>';
+    console.error('[F3 Numbers]', err);
+  }
+
+  // Load one specific day (used by the picker and the ‹ › steppers).
+  function loadDate() {
+    spinner();
+    fetch(base + '&date=' + encodeURIComponent(current))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.error) throw new Error(data.error);
+        var day = (data.days || []).find(function (x) { return x.date === current; }) || null;
+        nextEl.disabled = current >= todayStr;
+        render(day);
+      })
+      .catch(showError);
+  }
+
+  // Initial load with no explicit date: land on the most recent day that
+  // actually has numbers in, so the page is never blank first thing.
+  function loadLatest() {
+    spinner();
+    fetch(base + '&daysBack=21')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.error) throw new Error(data.error);
+        var days = data.days || [];
+        if (!days.length) {                 // nothing posted in the last 3 weeks
+          current = todayStr;
+          dateEl.value = current;
+          nextEl.disabled = true;
+          render(null);
+          return;
+        }
+        current = days[0].date;             // days come back newest-first
+        dateEl.value = current;
+        nextEl.disabled = current >= todayStr;
+        render(days[0]);
+      })
+      .catch(showError);
+  }
+
+  if (F3N.INIT_DATE && /^\d{4}-\d{2}-\d{2}$/.test(F3N.INIT_DATE)) {
+    current = F3N.INIT_DATE;
+    loadDate();
+  } else {
+    loadLatest();
+  }
+})();
+</script>
+</body>
+</html>
