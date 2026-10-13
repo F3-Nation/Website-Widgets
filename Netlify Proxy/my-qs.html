@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  F3 NATION "MY Qs" WIDGET
+  ============================================================
+  Shows every workout YOU have Q'd (or Co-Q'd) in a region for
+  a given year. Data is pulled live from the F3 Nation API.
+
+  USAGE
+  -----
+  Open with both your user ID and your region ID in the URL:
+     /my-qs.html?regionOrgId=25273&userId=12345
+  Optional: &year=2025 (defaults to current year), &year=0 = all time
+  Optional: &title=My%20Region   &siteUrl=https://your-site.com
+
+  HOW TO FIND YOUR USER ID
+  ------------------------
+  Easiest: GET /v1/user/email/YOUR_F3_EMAIL with your API key —
+  the response's "id" is your userId. Or ask in the F3 tech channel.
+
+  This page reuses the same "f3-cc" styling as missing-backblasts.html
+  so the two widgets look like a matching pair.
+  ============================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F3 My Qs</title>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+#f3-cc {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: #fff;
+  color: #111;
+  max-width: 520px;
+  width: 100%;
+  border: 1px solid #ddd;
+}
+
+.f3cc-hdr {
+  background: #111;
+  color: #fff;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.f3cc-hdr-mark {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+.f3cc-hdr-text { flex: 1; }
+.f3cc-hdr-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  line-height: 1;
+}
+.f3cc-hdr-tag {
+  font-size: 10px;
+  color: #aaa;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+.f3cc-hdr-label {
+  font-size: 10px;
+  color: #888;
+  text-align: right;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+
+.f3cc-stat {
+  background: #c8102e;
+  color: #fff;
+  padding: 14px 18px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.f3cc-stat-num {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+.f3cc-stat-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #ffd5dc;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.f3cc-board {
+  padding: 12px 18px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.f3cc-board-lbl {
+  width: 100%;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 4px;
+}
+.f3cc-board-chip {
+  background: #f7f7f7;
+  border: 1px solid #e5e5e5;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #333;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.f3cc-board-chip strong {
+  color: #c8102e;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.f3cc-day { border-bottom: 1px solid #eee; }
+.f3cc-day:last-child { border-bottom: none; }
+
+.f3cc-day-hdr {
+  background: #f7f7f7;
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #555;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.f3cc-day-age {
+  font-weight: 400;
+  opacity: .7;
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.f3cc-row {
+  padding: 10px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  display: grid;
+  grid-template-columns: 62px 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+.f3cc-row:last-child { border-bottom: none; }
+.f3cc-row:hover { background: #fafafa; }
+
+.f3cc-time { text-align: right; line-height: 1; }
+.f3cc-time-val {
+  font-size: 16px;
+  font-weight: 800;
+  color: #c8102e;
+  font-variant-numeric: tabular-nums;
+}
+.f3cc-time-ap {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+.f3cc-ao {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: .01em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+.f3cc-evname {
+  font-size: 11px;
+  color: #888;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+.f3cc-age {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #aaa;
+  text-align: right;
+  min-width: 64px;
+  line-height: 1.2;
+}
+.f3cc-age strong {
+  display: block;
+  font-size: 15px;
+  color: #111;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.f3cc-state {
+  padding: 36px 18px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #aaa;
+}
+.f3cc-state-spin {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #eee;
+  border-top-color: #c8102e;
+  border-radius: 50%;
+  animation: f3ccspin .7s linear infinite;
+  margin: 0 auto 12px;
+}
+@keyframes f3ccspin { to { transform: rotate(360deg); } }
+
+.f3cc-state-ok {
+  padding: 40px 18px;
+  text-align: center;
+}
+.f3cc-state-ok-icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+.f3cc-state-ok-txt {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #1a6b35;
+}
+
+.f3cc-ftr {
+  background: #f7f7f7;
+  border-top: 1px solid #eee;
+  padding: 9px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.f3cc-ftr a {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #888;
+  text-decoration: none;
+}
+.f3cc-ftr a:hover { color: #111; }
+.f3cc-ftr-brand {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #c8102e;
+}
+
+/* EXPANDABLE BACKBLAST DETAIL */
+.f3cc-row { cursor: pointer; }
+.f3cc-row[aria-expanded="true"] { background: #fafafa; }
+.f3cc-detail {
+  display: none;
+  padding: 14px 18px 18px 18px;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+  border-top: 1px dashed #e8e8e8;
+}
+.f3cc-detail.is-open { display: block; }
+.f3cc-detail-img {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  background: #eee;
+}
+.f3cc-detail-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.f3cc-detail-chip {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #555;
+}
+.f3cc-detail-chip strong {
+  color: #c8102e;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  margin-right: 4px;
+}
+.f3cc-detail-bb {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #222;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.f3cc-detail-empty {
+  font-size: 11px;
+  font-style: italic;
+  color: #999;
+  letter-spacing: .04em;
+}
+
+/* TOKEN PANEL */
+.f3cc-token {
+  padding: 22px 22px 24px;
+  background: #fff8dc;
+  border-top: 1px solid #f0e5a8;
+}
+.f3cc-token-h {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #7a5010;
+  margin-bottom: 6px;
+}
+.f3cc-token-p {
+  font-size: 12px;
+  color: #5a3d08;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.f3cc-token-in {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #d8c46a;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #fff;
+  margin-bottom: 8px;
+}
+.f3cc-token-row {
+  display: flex;
+  gap: 8px;
+}
+.f3cc-token-btn {
+  flex: 1;
+  background: #c8102e;
+  color: #fff;
+  border: 0;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.f3cc-token-btn.secondary {
+  background: #fff;
+  color: #7a5010;
+  border: 1px solid #d8c46a;
+}
+.f3cc-token-msg {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #c8102e;
+  min-height: 13px;
+}
+.f3cc-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: #f0f8f0;
+  border-bottom: 1px solid #d6e9d6;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #1a6b35;
+}
+.f3cc-bar a {
+  color: #1a6b35;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+}
+</style>
+</head>
+
+<body style="background:#e5e5e5;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px">
+
+<div id="f3-cc">
+
+  <div class="f3cc-hdr">
+    <div class="f3cc-hdr-mark" style="background:#c8102e;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px;letter-spacing:.02em">F3</div>
+    <div class="f3cc-hdr-text">
+      <div class="f3cc-hdr-name" id="f3cc-name">F3 Nation</div>
+      <div class="f3cc-hdr-tag">Fitness · Fellowship · Faith</div>
+    </div>
+    <div class="f3cc-hdr-label">My<br>Qs</div>
+  </div>
+
+  <div id="f3cc-body">
+    <div class="f3cc-state"><div class="f3cc-state-spin"></div>Loading your Qs…</div>
+  </div>
+
+  <div class="f3cc-ftr">
+    <a href="https://f3nation.com" target="_blank">F3Nation.com</a>
+    <div class="f3cc-ftr-brand">F3 Nation</div>
+    <a id="f3cc-sitelink" href="https://f3nation.com" target="_blank">Our Site →</a>
+  </div>
+
+</div>
+
+<script>
+var F3MQ = {
+  REGION_ORG_ID : new URLSearchParams(window.location.search).get('regionOrgId') || 25273,
+  USER_ID       : new URLSearchParams(window.location.search).get('userId')
+                  || localStorage.getItem('f3MyQsUserId')
+                  || '',
+  YEAR          : (function(){
+    var v = new URLSearchParams(window.location.search).get('year');
+    return v === null ? new Date().getFullYear() : parseInt(v, 10);
+  })(),
+  TOKEN         : localStorage.getItem('f3MyQsToken') || '',
+  PROXY_URL     : window.location.origin,
+  WIDGET_TITLE  : new URLSearchParams(window.location.search).get('title') || 'F3 Nation',
+  REGION_URL    : new URLSearchParams(window.location.search).get('siteUrl') || 'https://f3nation.com',
+};
+
+function f3mqHeaders() {
+  var h = { 'Accept': 'application/json' };
+  if (F3MQ.TOKEN) h['X-F3-Token'] = F3MQ.TOKEN;
+  return h;
+}
+
+(function() {
+
+  document.getElementById('f3cc-name').textContent = F3MQ.WIDGET_TITLE;
+  var sl = document.getElementById('f3cc-sitelink');
+  if (sl) sl.href = F3MQ.REGION_URL;
+
+  if (!F3MQ.USER_ID) {
+    showEmailPrompt();
+    return;
+  }
+
+  loadQs();
+
+  function showEmailPrompt(initialError) {
+    document.getElementById('f3cc-body').innerHTML =
+      '<div style="padding:28px 22px;text-align:center">'
+      +   '<div style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#555;margin-bottom:14px">Find My Qs</div>'
+      +   '<div style="font-size:12px;color:#888;margin-bottom:16px">Enter your F3 email to look up your user ID. We\'ll remember it on this device.</div>'
+      +   '<input id="f3mq-email" type="email" placeholder="you@example.com" autocomplete="email" '
+      +     'style="width:100%;padding:10px 12px;border:1px solid #ccc;border-radius:4px;font-size:14px;margin-bottom:10px">'
+      +   '<button id="f3mq-go" style="width:100%;background:#c8102e;color:#fff;border:0;padding:10px 14px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:4px;cursor:pointer">Find Me</button>'
+      +   '<div id="f3mq-err" style="margin-top:10px;font-size:11px;color:#c8102e;min-height:14px">' + (initialError || '') + '</div>'
+      + '</div>';
+
+    var input = document.getElementById('f3mq-email');
+    var btn   = document.getElementById('f3mq-go');
+    var err   = document.getElementById('f3mq-err');
+    input.focus();
+    input.addEventListener('keydown', function(e){ if (e.key === 'Enter') btn.click(); });
+    btn.addEventListener('click', function(){
+      var email = (input.value || '').trim();
+      if (!email) { err.textContent = 'Enter an email address.'; return; }
+      btn.disabled = true; btn.textContent = 'Looking up…'; err.textContent = '';
+      fetch(F3MQ.PROXY_URL + '/.netlify/functions/region-user-by-email?email=' + encodeURIComponent(email), { headers: f3mqHeaders() })
+        .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+        .then(function(res){
+          if (!res.ok || !res.body.id) {
+            btn.disabled = false; btn.textContent = 'Find Me';
+            err.textContent = res.body.error || 'Lookup failed.';
+            return;
+          }
+          F3MQ.USER_ID = String(res.body.id);
+          localStorage.setItem('f3MyQsUserId', F3MQ.USER_ID);
+          if (res.body.f3Name) F3MQ.WIDGET_TITLE = res.body.f3Name + '’s Qs';
+          document.getElementById('f3cc-name').textContent = F3MQ.WIDGET_TITLE;
+          loadQs();
+        })
+        .catch(function(){
+          btn.disabled = false; btn.textContent = 'Find Me';
+          err.textContent = 'Network error — try again.';
+        });
+    });
+  }
+
+  function loadQs() {
+    document.getElementById('f3cc-body').innerHTML =
+      '<div class="f3cc-state"><div class="f3cc-state-spin"></div>Loading your Qs…</div>';
+
+    var url = F3MQ.PROXY_URL
+      + '/.netlify/functions/region-my-qs'
+      + '?regionOrgId=' + encodeURIComponent(F3MQ.REGION_ORG_ID)
+      + '&userId='      + encodeURIComponent(F3MQ.USER_ID)
+      + '&year='        + encodeURIComponent(F3MQ.YEAR);
+
+    fetch(url, { headers: f3mqHeaders() })
+    .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, status: r.status, body: j }; }); })
+    .then(function(res){
+
+      var data = res.body || {};
+
+      if (!res.ok || data.error) {
+        var msg = data.error || ('HTTP ' + res.status);
+        var authProblem = res.status === 401 || res.status === 403;
+        document.getElementById('f3cc-body').innerHTML =
+          '<div class="f3cc-state">Could not load your Qs —<br>' + escapeHtml(msg) + '</div>'
+          + buildTokenPanel(authProblem
+              ? "Your token doesn't have access to this user/region. Paste a different bearer token below."
+              : 'Want to retry with a different bearer token?');
+        wireTokenPanel();
+        return;
+      }
+
+      var events = data.events || [];
+      var yearLabel = data.year ? data.year : 'All Time';
+
+      if (!events.length) {
+        document.getElementById('f3cc-body').innerHTML =
+          '<div class="f3cc-state-ok">'
+            + '<div class="f3cc-state-ok-icon">·</div>'
+            + '<div class="f3cc-state-ok-txt">No Qs found for ' + yearLabel + '</div>'
+          + '</div>'
+          + buildTokenPanel('Not seeing your data? Try a token that has access to this user/region.');
+        wireTokenPanel();
+        return;
+      }
+
+      var tokenLbl = data.tokenSource === 'user' ? 'Your saved key' : 'Site default';
+      var html = ''
+        + '<div class="f3cc-bar">'
+        +   '<span>Token: ' + tokenLbl + '</span>'
+        +   '<a id="f3cc-token-link">' + (F3MQ.TOKEN ? 'Change / clear' : 'Use my own token') + '</a>'
+        + '</div>'
+        + '<div class="f3cc-stat">'
+        +   '<div class="f3cc-stat-num">' + events.length + '</div>'
+        +   '<div class="f3cc-stat-lbl">Workouts<br>Q\'d<br>' + yearLabel + '</div>'
+        + '</div>';
+
+      // AO leaderboard — your top AOs by Q count
+      var byAo = {};
+      events.forEach(function(e){
+        var ao = e.orgName || e.name || 'Unknown';
+        byAo[ao] = (byAo[ao] || 0) + 1;
+      });
+      var leaderboard = Object.keys(byAo)
+        .map(function(k){ return { name: k, count: byAo[k] }; })
+        .sort(function(a,b){ return b.count - a.count; })
+        .slice(0, 6);
+
+      if (leaderboard.length > 1) {
+        html += '<div class="f3cc-board">';
+        html += '<div class="f3cc-board-lbl">By AO</div>';
+        leaderboard.forEach(function(l){
+          html += '<span class="f3cc-board-chip"><strong>' + l.count + '</strong>' + escapeHtml(l.name) + '</span>';
+        });
+        html += '</div>';
+      }
+
+      var byDate = {};
+      events.forEach(function(e){
+        if (!byDate[e.startDate]) byDate[e.startDate] = [];
+        byDate[e.startDate].push(e);
+      });
+
+      var dates = Object.keys(byDate).sort().reverse();
+      var days  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      var mons  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+      var todayLocal = new Date();
+      todayLocal.setHours(0,0,0,0);
+
+      dates.forEach(function(ds){
+        var d       = new Date(ds + 'T12:00:00');
+        var dName   = days[d.getDay()];
+        var dDate   = mons[d.getMonth()] + ' ' + d.getDate();
+        var ageDays = Math.round((todayLocal - new Date(ds + 'T12:00:00')) / 86400000);
+        var ageTxt  = ageDays === 1 ? '1 day ago' : ageDays + ' days ago';
+
+        html += '<div class="f3cc-day">';
+        html += '<div class="f3cc-day-hdr">'
+             +   '<span>' + dName + ' <span style="font-weight:400;opacity:.7">' + dDate + '</span></span>'
+             +   '<span class="f3cc-day-age">' + ageTxt + '</span>'
+             + '</div>';
+
+        byDate[ds]
+          .sort(function(a,b){ return (a.orgName || '').localeCompare(b.orgName || ''); })
+          .forEach(function(e){
+            var raw = e.startTime || '';
+            var timeHtml = '<div class="f3cc-time-val">—</div>';
+            if (raw && raw.length >= 4) {
+              var h   = parseInt(raw.slice(0,2), 10);
+              var m   = raw.slice(2,4);
+              var ap  = h >= 12 ? 'PM' : 'AM';
+              var h12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+              timeHtml = '<div class="f3cc-time-val">' + h12 + ':' + m + '</div>'
+                      + '<div class="f3cc-time-ap">' + ap + '</div>';
+            }
+
+            var ao      = e.orgName || e.name || 'Unknown';
+            var evName  = (e.name && e.name !== ao) ? e.name : '';
+            var bbText  = extractBackblast(e);
+            var imgUrl  = extractImage(e);
+
+            html += '<div class="f3cc-row" data-row="1" aria-expanded="false">'
+                 +   '<div class="f3cc-time">' + timeHtml + '</div>'
+                 +   '<div>'
+                 +     '<div class="f3cc-ao">' + escapeHtml(ao) + '</div>'
+                 +     (evName ? '<div class="f3cc-evname">' + escapeHtml(evName) + '</div>' : '')
+                 +   '</div>'
+                 +   '<div class="f3cc-age"><strong>' + ageDays + '</strong>d ago</div>'
+                 + '</div>';
+
+            html += '<div class="f3cc-detail">';
+            if (imgUrl) {
+              html += '<img class="f3cc-detail-img" src="' + escapeHtml(imgUrl) + '" alt="" loading="lazy" '
+                   + 'onerror="this.style.display=\'none\'">';
+            }
+            var chips = '';
+            if (typeof e.paxCount === 'number') chips += '<span class="f3cc-detail-chip"><strong>' + e.paxCount + '</strong>PAX</span>';
+            if (typeof e.fngCount === 'number') chips += '<span class="f3cc-detail-chip"><strong>' + e.fngCount + '</strong>FNG</span>';
+            if (chips) html += '<div class="f3cc-detail-meta">' + chips + '</div>';
+            if (bbText) {
+              html += '<div class="f3cc-detail-bb">' + escapeHtml(bbText) + '</div>';
+            } else {
+              html += '<div class="f3cc-detail-empty">No backblast posted yet.</div>';
+            }
+            html += '</div>';
+          });
+
+        html += '</div>';
+      });
+
+      document.getElementById('f3cc-body').innerHTML = html;
+      wireRowToggles();
+      wireTokenBar();
+    })
+    .catch(function(err){
+      document.getElementById('f3cc-body').innerHTML =
+        '<div class="f3cc-state">Could not load your Qs —<br>check region/user IDs and token</div>'
+        + buildTokenPanel('Network or proxy error. Try a different bearer token?');
+      wireTokenPanel();
+      console.error('[F3 My Qs] failed:', (err && err.message) || 'unknown');
+    });
+  }
+
+  function buildTokenPanel(message) {
+    var current = F3MQ.TOKEN ? '••••••••' + F3MQ.TOKEN.slice(-4) : '(none)';
+    return ''
+      + '<div class="f3cc-token" id="f3cc-token">'
+      +   '<div class="f3cc-token-h">Use Your Own Token</div>'
+      +   '<div class="f3cc-token-p">' + escapeHtml(message || '') + ' '
+      +     'Get one at <a href="https://map.f3nation.com/admin/api-keys" target="_blank" rel="noopener" style="color:#7a5010">map.f3nation.com/admin/api-keys</a>. '
+      +     'Read-only is fine. Currently using: <code>' + escapeHtml(current) + '</code>'
+      +   '</div>'
+      +   '<input id="f3cc-token-in" class="f3cc-token-in" type="password" autocomplete="off" placeholder="Paste F3 Nation API key…">'
+      +   '<div class="f3cc-token-row">'
+      +     '<button id="f3cc-token-save" class="f3cc-token-btn">Save & Retry</button>'
+      +     (F3MQ.TOKEN ? '<button id="f3cc-token-clear" class="f3cc-token-btn secondary">Clear</button>' : '')
+      +   '</div>'
+      +   '<div id="f3cc-token-msg" class="f3cc-token-msg"></div>'
+      + '</div>';
+  }
+
+  function wireTokenPanel() {
+    var save  = document.getElementById('f3cc-token-save');
+    var clear = document.getElementById('f3cc-token-clear');
+    var input = document.getElementById('f3cc-token-in');
+    var msg   = document.getElementById('f3cc-token-msg');
+    if (!save || !input) return;
+    input.addEventListener('keydown', function(e){ if (e.key === 'Enter') save.click(); });
+    save.addEventListener('click', function(){
+      var v = (input.value || '').trim();
+      if (!v) { msg.textContent = 'Paste a bearer token first.'; return; }
+      F3MQ.TOKEN = v;
+      localStorage.setItem('f3MyQsToken', v);
+      loadQs();
+    });
+    if (clear) {
+      clear.addEventListener('click', function(){
+        F3MQ.TOKEN = '';
+        localStorage.removeItem('f3MyQsToken');
+        loadQs();
+      });
+    }
+  }
+
+  function wireTokenBar() {
+    var link = document.getElementById('f3cc-token-link');
+    if (!link) return;
+    link.addEventListener('click', function(e){
+      e.preventDefault();
+      var existing = document.getElementById('f3cc-token');
+      if (existing) { existing.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+      var bar = link.closest('.f3cc-bar');
+      var panel = document.createElement('div');
+      panel.innerHTML = buildTokenPanel('Switch the token used for these requests.');
+      bar.parentNode.insertBefore(panel.firstChild, bar.nextSibling);
+      wireTokenPanel();
+      document.getElementById('f3cc-token').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  function wireRowToggles() {
+    document.querySelectorAll('#f3cc-body .f3cc-row[data-row]').forEach(function(row){
+      row.addEventListener('click', function(){
+        var detail = row.nextElementSibling;
+        if (!detail || !detail.classList.contains('f3cc-detail')) return;
+        var open = detail.classList.toggle('is-open');
+        row.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    });
+  }
+
+  // Pull backblast text from whichever field the API populated.
+  function extractBackblast(e) {
+    if (typeof e.backblast === 'string' && e.backblast.trim()) return e.backblast.trim();
+    var rich = e.backblastRich;
+    if (Array.isArray(rich)) {
+      var parts = [];
+      walkRich(rich, parts);
+      var joined = parts.join('\n').trim();
+      if (joined) return joined;
+    }
+    return '';
+  }
+
+  function walkRich(node, out) {
+    if (node == null) return;
+    if (typeof node === 'string') { out.push(node); return; }
+    if (Array.isArray(node)) { node.forEach(function(n){ walkRich(n, out); }); return; }
+    if (typeof node === 'object') {
+      if (typeof node.text === 'string') out.push(node.text);
+      if (Array.isArray(node.children)) walkRich(node.children, out);
+      else if (Array.isArray(node.content)) walkRich(node.content, out);
+    }
+  }
+
+  // "Hair band" header image — the API doesn't enumerate this field, so probe
+  // the keys we've seen in the wild and fall back to scanning backblastRich.
+  function extractImage(e) {
+    var direct = e.imageUrl || e.image || e.headerImage || e.coverImage || e.bannerUrl;
+    if (typeof direct === 'string' && direct) return direct;
+    if (e.meta && typeof e.meta === 'object') {
+      var m = e.meta;
+      var fromMeta = m.headerImage || m.image || m.imageUrl || m.coverImage || m.banner || m.bannerUrl;
+      if (typeof fromMeta === 'string' && fromMeta) return fromMeta;
+    }
+    var found = '';
+    if (Array.isArray(e.backblastRich)) {
+      var stack = e.backblastRich.slice();
+      while (stack.length && !found) {
+        var n = stack.shift();
+        if (n == null) continue;
+        if (typeof n === 'string') {
+          var m2 = n.match(/https?:\/\/\S+\.(?:png|jpg|jpeg|gif|webp)(?:\?\S*)?/i);
+          if (m2) found = m2[0];
+        } else if (Array.isArray(n)) {
+          stack = n.concat(stack);
+        } else if (typeof n === 'object') {
+          var u = n.url || n.src || n.imageUrl;
+          if (typeof u === 'string' && /^https?:\/\//.test(u)) found = u;
+          if (n.children) stack = (Array.isArray(n.children) ? n.children : [n.children]).concat(stack);
+          if (n.content)  stack = (Array.isArray(n.content)  ? n.content  : [n.content]).concat(stack);
+        }
+      }
+    }
+    return found;
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+})();
+</script>
+</body>
+</html>
